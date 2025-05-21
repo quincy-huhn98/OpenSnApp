@@ -1,0 +1,42 @@
+name: Regression Tests
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run-tests:
+    runs-on: [self-hosted]
+    strategy:
+      fail-fast: false
+    steps:
+      - name: checkout testapp
+        uses: actions/checkout@v4
+      - name: checkout opensn
+        uses: actions/checkout@v4
+        with:
+          repository: Open-Sn/opensn
+          path: opensn
+      - name: install opensn
+        shell: bash
+        run: |
+          module load opensn/clang/17 python3/3.12.3
+          cd opensn && mkdir build && mkdir install && cd build 
+          cmake -DOPENSN_WITH_PYTHON=True -DCMAKE_INSTALL_PREFIX=../install .. && make -j && make install
+      - name: compile app
+        shell: bash
+        run: |
+          module load opensn/clang/17 python3/3.12.3
+          cd OpenSnApp && mkdir build && cd build
+          cmake -DCMAKE_PREFIX_PATH=../../opensn/install .. && make -j
+      - name: test examples
+        shell: bash
+        run: |
+          module load opensn/clang/17 python3/3.12.3
+          cd tests && ../build/test_app_exec -i test.py
