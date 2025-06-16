@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""
+OpenSn Test system
+
+Principles:
+- A test is specified by an input file
+- A test can be subjected to one or more checks
+  - RunCheck: Does it run and exit with error-code 0
+  - ConsoleOutputCheck: Does the console output contain specific text
+  - ConsoleGoldCheck: Diff a portion of the console output against gold output
+  - OutputCheck: Compares output data (vtk, exodus, data) against gold output
+- Any folder that contains the correct information for tests, can be
+  bootstrapped to the test system.
+- A folder can be used as a staging area to perfect a test after which the
+  test can be moved into the appropriate place
+"""
+import os
+import sys
+import argparse
+import textwrap
+import warnings
+
+from src import job_manager
+
+if sys.version_info.major < 3:
+    raise Exception("Found Python version " + str(sys.version_info.major) + "."
+                    + str(sys.version_info.minor) + " but version >=3 required.")
+
+# Process commandline arguments
+arguments_help = textwrap.dedent('''\
+Run the test suite or, optionally, a series of individual tests or a range of tests.
+''')
+
+parser = argparse.ArgumentParser(
+    description="A script to run the regression test suite.",
+    epilog=arguments_help
+)
+
+parser.add_argument(
+    "-d", "--directory",
+    type=str, required=False,
+    default=os.path.abspath(os.path.dirname(__file__)),
+    help="The directory to search for test files"
+)
+
+parser.add_argument(
+    "-t", "--test",
+    type=str, required=False, default=None,
+    help="Full path to an OpenSn test file"
+)
+
+parser.add_argument(
+    "--exe",
+    type=str, required=False,
+    help="The executable to use for testing"
+)
+
+parser.add_argument(
+    "-j", "--jobs",
+    type=int, required=False, default=0,
+    help="Allow N jobs at once"
+)
+
+parser.add_argument(
+    "-v", "--verbose",
+    type=bool, required=False, default=False,
+    help="Controls verbose failure"
+)
+
+parser.add_argument(
+    "--mpi-cmd",
+    type=str, required=False, default="mpiexec -n ",
+    help="MPI application launcher command"
+)
+
+parser.add_argument(
+    "--engine",
+    type=str,
+    choices=["console", "module", "jupyter"],
+    default="console",
+    help="Choose execution mode (console, jupyter)."
+)
+
+parser.add_argument(
+    "-w", "--weights",
+    type=int, required=False, default=3,
+    help="Test weight. Single numeric value < 7. This number, when converted to binary, specifies "
+         "the long, intermediate, and short test weight configuration. For example: A value of 7, "
+         "or 111 in binary [long, intermediate, short], runs the long, intermediate and short "
+         "tests. A value of 4, or 100 in binary, runs only the long tests. A value of 3, or 011, "
+         "uns the short and intermediate tests."
+)
+
+argv = parser.parse_args()
+
+# --test should provide the full path to a test file. Break that up and set
+# test and directory appropriately
+if argv.test is not None:
+    dir, file = os.path.split(argv.test)
+    argv.directory = dir
+    argv.test = file
+
+# Check the test directory exists
+if not os.path.isdir(argv.directory):
+    raise NotADirectoryError(argv.directory)
+
+# Check the exe exists
+if argv.exe is None:
+    argv.exe = "build/diff_app_exec"
+if not os.path.isfile(argv.exe):
+    raise FileNotFoundError(argv.exe)
+
+# Ensure exe path is absolute
+argv.exe = os.path.abspath(argv.exe)
+
+# If no test directory specified then we print help and quit
+if argv.directory is None:
+    print(arguments_help)
+    sys.exit(0)
+
+# Execute
+test_hierarchy = job_manager.BuildSearchHierarchyForTests(argv)
+with warnings.catch_warnings(record=True) as warning_manager1:
+    tests = job_manager.ConfigureTests(test_hierarchy, argv)
+
+job_manager.PrintCaughtWarnings(warning_manager1, "Warnings during test configuration")
+if len(warning_manager1) > 0:
+    sys.exit(-1)
+
+print("""
+********************************** OpenSn Test system **********************************
+
+Use -h to print argument options.
+
+Test directories found:""")
+for test_dir in test_hierarchy:
+    print("  " + test_dir)
+
+print()
+print("Output description:")
+print("\033[33m[XX]\033[0m <test directory>/<input filename> (test args).......", end="")
+print("\033[36m[Annotations]\033[0m", end="")
+print("\033[32mPassed\033[0m/\033[31mFailed\033[0m")
+print("\033[33m[XX]\033[0m : Number of MPI processes")
+print("\033[36m[Annotations]\033[0m : Error messages preventing a test from running\n")
+print("\t\033[36m[Skipped]\033[0m")
+print("\tTest was intentionally skipped. A reason for skipping this test should be")
+print("\tprovided by the responsible developer.\n")
+print("\t\033[36m[Input file missing]\033[0m")
+print("\tA test pointing to an input file was found in a .json file but the input file")
+print("\tis missing.\n")
+print("\t\033[36m[Gold file missing]\033[0m")
+print("\tTest with a gold file check has no .gold file in the gold/ directory. If the")
+print("\tinput is input.ext then there needs to be an input.ext.gold file in the gold")
+print("\tdirectory. If this was the first run then copy input.ext.out from the out/")
+print("\tdirectory and use that as the gold file.\n")
+print("\t\033[36m[Python error]\033[0m")
+print("\tA python error occurred. Run with -v 1 to see the error.")
+
+print()
+
+job_manager.PrintCaughtWarnings(warning_manager1, "Warnings during test configuration")
+print()
+
+with warnings.catch_warnings(record=True) as warning_manager2:
+    retval = job_manager.RunTests(tests, argv)
+
+job_manager.PrintCaughtWarnings(warning_manager2, "Warnings during test execution")
+
+sys.exit(retval)
