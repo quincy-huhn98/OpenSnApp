@@ -87,3 +87,8 @@ doc/**/*.vtu
 tutorials/**/*.pvtu
 tutorials/**/*.vtu
 tutorials/**/*.py
+
+examples/*/basis/*
+examples/*/data/*
+examples/*/output/*
+examples/*/results/*

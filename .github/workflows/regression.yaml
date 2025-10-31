@@ -28,7 +28,7 @@ jobs:
         run: |
           module load opensn/clang/17 python3/3.12.3
           cd opensn && mkdir build && mkdir install && cd build 
-          cmake -DOPENSN_WITH_PYTHON=True -DCMAKE_INSTALL_PREFIX=../install .. && make -j && make install
+          cmake -DCMAKE_INSTALL_PREFIX=../install .. && make -j && make install
       - name: compile app
         shell: bash
         run: |
@@ -39,4 +39,4 @@ jobs:
         shell: bash
         run: |
           module load opensn/clang/17 python3/3.12.3
-          cd tests && ../build/test_app_exec -i test.py
+          cd examples/reed && python run_rom_reed.py
