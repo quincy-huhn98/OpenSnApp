@@ -70,6 +70,8 @@ SteadyStateROMSolver::Execute()
   }
   if (rom_options.phase == Phase::SYSTEMS)
   {
+    rom_problem_->LoadUgs();
+
     std::shared_ptr<CAROM::Matrix> AU_ = rom_problem_->AssembleAU();
     std::shared_ptr<CAROM::Vector> b_ = rom_problem_->AssembleRHS();
     const std::string& Ar_filename = "data/rom_system_Ar_" + std::to_string(rom_options.param_id);
@@ -79,10 +81,12 @@ SteadyStateROMSolver::Execute()
   if (rom_options.phase == Phase::ONLINE)
   {
     rom_problem_->ReadParamMatrix(rom_options.param_file);
+    rom_problem_->LoadUgs();
 
     std::shared_ptr<CAROM::Matrix> Ar_interp;
     std::shared_ptr<CAROM::Vector> rhs_interp;
-    rom_problem_->SetupInterpolator(*rom_options.new_point);
+    rom_problem_->SetupArInterpolator(*rom_options.new_point);
+    rom_problem_->SetuprhsInterpolator(*rom_options.new_point);
 
     auto start = std::chrono::high_resolution_clock::now();
 

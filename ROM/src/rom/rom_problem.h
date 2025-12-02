@@ -40,11 +40,16 @@ public:
   /// Load the params from file
   void ReadParamMatrix(const std::string& filename);
 
+  void LoadUgs();
+
   /// Calculate AU via sweeps
   std::shared_ptr<CAROM::Matrix> AssembleAU();
 
   /// Sweep to form RHS
   std::shared_ptr<CAROM::Vector> AssembleRHS();
+  
+  /// Sweep to form BU
+  std::shared_ptr<CAROM::Matrix> AssembleBU();
 
   /// Assemble the reduced system and save to file
   void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU, 
@@ -52,23 +57,51 @@ public:
                    const std::string& Ar_filename,
                    const std::string& rhs_filename);
 
+  /// Assemble the reduced system and save to file
+  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU_, 
+                   std::shared_ptr<CAROM::Matrix>& BU_, 
+                   const std::string& Ar_filename,
+                   const std::string& Br_filename);
+
   /// Solve given LHS and RHS of a ROM system
   void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
                 std::shared_ptr<CAROM::Vector>& rhs);
 
-  /// Load reduced systems and initialize libROM interpolator objects
-  void SetupInterpolator(CAROM::Vector& desired_point);
+  void InitializeSolver(std::shared_ptr<CAROM::Matrix>& Ar,
+                        std::shared_ptr<CAROM::Matrix>& Br);
+
+  /// Solve given LHS and RHS of a ROM system
+  void SolveROM(double k_eff);
+
+  /// Load Ar and initialize libROM interpolator objects
+  void SetupArInterpolator(CAROM::Vector& desired_point);
+
+  /// Load br and initialize libROM interpolator objects
+  void SetuprhsInterpolator(CAROM::Vector& desired_point);
+
+  /// Load Br and initialize libROM interpolator objects
+  void SetupBrInterpolator(CAROM::Vector& desired_point);
 
   void InterpolateArAndRHSr(
     CAROM::Vector& desired_point,
     std::shared_ptr<CAROM::Matrix>& Ar_interp,
     std::shared_ptr<CAROM::Vector>& rhs_interp);
 
+  void InterpolateArAndBr(
+    CAROM::Vector& desired_point,
+    std::shared_ptr<CAROM::Matrix>& Ar_interp,
+    std::shared_ptr<CAROM::Matrix>& Br_interp);
+
 protected:
   std::unique_ptr<CAROM::Matrix> spatial_basis_;
   opensn::Vector<double> b_;
-  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr_;
-  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr_;
+  std::vector<std::unique_ptr<CAROM::Matrix>> Ugs;
+  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
+  std::unique_ptr<CAROM::MatrixInterpolator> Br_interp_obj_ptr;
+  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
+  std::shared_ptr<CAROM::Matrix> Ar_inv_Br;
+  std::shared_ptr<CAROM::Vector> c_prev;
+  std::shared_ptr<CAROM::Vector> c_vec;
   std::shared_ptr<DiscreteOrdinatesProblem> lbs_problem_;
   ROMOptions options_;
 

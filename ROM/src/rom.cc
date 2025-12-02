@@ -8,6 +8,7 @@
 #include "rom/ROM_problem.h"
 >>>>>>> dd951c6 (ROM App)
 #include "rom/steady_state_rom_solver.h"
+#include "rom/pi_keigen_rom_solver.h"
 #include "modules/solver.h"
 #include <memory>
 #include <string>
@@ -114,6 +115,62 @@ void WrapROM(py::module& m)
            Prepare the solver and ROM controller for execution.
            )")
       .def("Execute",    &SteadyStateROMSolver::Execute,
+           R"(
+           Execute()
+
+           Run the solve. Behavior depends on the ROM phase:
+             - 'offline' : full-order solve + snapshot sample
+             - 'merge'   : merge snapshots into bases
+             - 'systems' : assemble reduced systems and write libROM files
+             - 'online'  : interpolate and solve reduced system
+           )");
+
+  // PowerIterationKEigenROMSolver
+  auto pi_rom_solver =
+      py::class_<PowerIterationKEigenROMSolver,
+                 std::shared_ptr<PowerIterationKEigenROMSolver>,
+                 Solver>(
+        m,
+        "PowerIterationROMSolver",
+        R"(
+        k eigen ROM driver.
+
+        Wrapper of :cpp:class:`opensn::PowerIterationKEigenROMSolver`.
+
+        Parameters (kwargs)
+        -------------------
+        problem : LBSProblem
+            The full-order transport problem.
+        rom_problem : ROMProblem
+            The ROM controller (bases, reduced systems, interpolation).
+        name : str
+            Required solver name for logging/monitors.
+        )"
+      );
+
+  pi_rom_solver.def(
+      py::init([](py::kwargs kw)
+      {
+        auto params = KwargsToParams<PowerIterationKEigenROMSolver>(kw);
+
+        return std::make_shared<PowerIterationKEigenROMSolver>(params);
+      }),
+      R"(
+      PowerIterationKEigenROMSolver(**kwargs)
+
+      Construct a k-eigen driver that dispatches to ROM or FOM paths
+      depending on the ROM options and phase.
+      )"
+  );
+
+  pi_rom_solver
+      .def("Initialize", &PowerIterationKEigenROMSolver::Initialize,
+           R"(
+           Initialize()
+
+           Prepare the solver and ROM controller for execution.
+           )")
+      .def("Execute",    &PowerIterationKEigenROMSolver::Execute,
            R"(
            Execute()
 

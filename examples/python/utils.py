@@ -123,3 +123,29 @@ def update_xs(in_file, out_file, sigma_t_vec, S):
 
     with open(out_file, "w") as f:
         f.writelines(lines)
+
+def update_fission_xs(in_file, out_file, nu, sigma_f_vec):
+    with open(in_file, "r") as f:
+        lines = f.readlines()
+
+    # --- SIGMA_T block ---
+    b = next(i for i, s in enumerate(lines) if "SIGMA_T_BEGIN" in s)
+    e = next(i for i, s in enumerate(lines) if "SIGMA_T_END"   in s)
+    for i in range(b+1, e):
+        toks = lines[i].split()
+        g = int(toks[0])
+        toks[1] = f"{float(sigma_f_vec[g]):.12g}"
+        lines[i] = " ".join(toks) + "\n"
+
+    # --- NU_PROMPT block ---
+    nb = next(i for i, s in enumerate(lines) if "NU_PROMPT_BEGIN" in s)
+    ne = next(i for i, s in enumerate(lines) if "NU_PROMPT_END"   in s)
+
+    for i in range(nb+1, ne):
+        toks = lines[i].split()
+        g = int(toks[0])
+        toks[1] = f"{float(nu[g]):.12g}"
+        lines[i] = " ".join(toks) + "\n"
+
+    with open(out_file, "w") as f:
+        f.writelines(lines)
