@@ -113,8 +113,8 @@ ROMProblem::MergePhase(int nsnaps)
   auto full_dim = num_local_nodes * num_moments * num_groups;
 
   CAROM::Options options(group_dim, max_num_snapshots, update_right_SV);
-  double tol = 1e-20;
-  romRank = 20;
+  double tol = 1e-8;
+  romRank = 10;
   options.setSingularValueTol(tol);
   options.setMaxBasisDimension(romRank);
 
@@ -166,15 +166,10 @@ ROMProblem::ReadParamMatrix(const std::string& filename)
   }
 }
 
-std::shared_ptr<CAROM::Matrix>
-ROMProblem::AssembleAU()
+void
+ROMProblem::LoadUgs()
 {
-  auto num_moments = lbs_problem->GetNumMoments();
   auto num_groups = lbs_problem->GetNumGroups();
-  auto num_local_nodes  = lbs_problem->GetLocalNodeCount();
-  const auto num_local_dofs = num_local_nodes * num_moments * num_groups;
-
-  std::vector<std::unique_ptr<CAROM::Matrix>> Ugs;
   Ugs.reserve(num_groups);
   for (auto g = 0; g < num_groups; ++g)
   {
@@ -184,7 +179,16 @@ ROMProblem::AssembleAU()
     if (g == 0) romRank = Ug->numColumns();
     Ugs.push_back(std::move(Ug));
   }
+}
 
+std::shared_ptr<CAROM::Matrix>
+ROMProblem::AssembleAU()
+{
+  auto num_moments = lbs_problem->GetNumMoments();
+  auto num_groups = lbs_problem->GetNumGroups();
+  auto num_local_nodes  = lbs_problem->GetLocalNodeCount();
+  const auto num_local_dofs = num_local_nodes * num_moments * num_groups;
+  
   auto AU = std::make_shared<CAROM::Matrix>(num_local_dofs, romRank * num_groups, true);
 
   // Assuming one groupset for ROM problems
@@ -257,6 +261,56 @@ ROMProblem::AssembleRHS()
   return b;
 }
 
+std::shared_ptr<CAROM::Matrix>
+ROMProblem::AssembleBU()
+{
+  auto num_moments = lbs_problem->GetNumMoments();
+  auto num_groups = lbs_problem->GetNumGroups();
+  auto num_local_nodes  = lbs_problem->GetLocalNodeCount();
+  const auto num_local_dofs = num_local_nodes * num_moments * num_groups;
+
+  auto BU = std::make_shared<CAROM::Matrix>(num_local_dofs, romRank * num_groups, true);
+
+  // Assuming one groupset for ROM problems
+  auto wgs_solvers = lbs_problem->GetWGSSolvers();
+  auto raw_context   = wgs_solvers.front()->GetContext();
+  auto gs_context    = std::dynamic_pointer_cast<WGSContext>(raw_context);
+  const auto scope   = APPLY_AGS_FISSION_SOURCES | APPLY_WGS_FISSION_SOURCES | APPLY_AGS_SCATTER_SOURCES | APPLY_FIXED_SOURCES;
+
+  auto& phi_old_local = lbs_problem->GetPhiOldLocal();
+  auto& q_moments_local = lbs_problem->GetQMomentsLocal();
+  
+  for (auto g = 0; g < num_groups; ++g)
+  {
+    for (auto r = 0; r < romRank; ++r)
+    {
+      std::vector<double> basis_local(num_local_dofs, 0.0);
+      phi_old_local.assign(phi_old_local.size(), 0.0);
+
+      auto col_g  = Ugs[g]->getColumn(r);
+      size_t rowg = 0;
+      for (size_t n = 0; n < num_local_nodes; ++n)
+        for (size_t m = 0; m < static_cast<size_t>(num_moments); ++m, ++rowg)
+        {
+          const size_t row_phi = n * (num_moments * num_groups) + m * num_groups + g;
+          basis_local[row_phi] = col_g->item(rowg);
+        }
+
+      q_moments_local.assign(q_moments_local.size(), 0.0);
+      gs_context->set_source_function(gs_context->groupset, q_moments_local, basis_local, scope);
+
+      // Sweep
+      gs_context->ApplyInverseTransportOperator(scope);
+      std::vector<double> phi_new_local = lbs_problem->GetPhiNewLocal();
+
+      const auto col_idx = g * romRank + r;
+      for (size_t i = 0; i < static_cast<size_t>(num_local_dofs); ++i)
+        BU->item(i, static_cast<int>(col_idx)) = phi_new_local[i];
+    }
+  }
+  return BU;
+}
+
 void 
 ROMProblem::AssembleROM(
   std::shared_ptr<CAROM::Matrix>& AU,
@@ -275,6 +329,24 @@ ROMProblem::AssembleROM(
   rhs->write(rhs_filename);
 }
 
+void 
+ROMProblem::AssembleROM(
+  std::shared_ptr<CAROM::Matrix>& AU,
+  std::shared_ptr<CAROM::Matrix>& BU,
+  const std::string& Ar_filename,
+  const std::string& Br_filename)
+{
+  // Br = AU^T * BU
+  auto Br = AU->transposeMult(*BU);
+
+  // Ar = AU^T * AU
+  auto Ar = AU->transposeMult(*AU);
+
+  // Save
+  Ar->write(Ar_filename);
+  Br->write(Br_filename);
+}
+
 void
 ROMProblem::SolveROM(
   std::shared_ptr<CAROM::Matrix>& Ar,
@@ -290,17 +362,6 @@ ROMProblem::SolveROM(
   auto num_groups = lbs_problem->GetNumGroups();
   auto num_local_nodes = lbs_problem->GetLocalNodeCount();
   auto num_local_dofs = num_local_nodes * num_moments * num_groups;
-
-  std::vector<std::unique_ptr<CAROM::Matrix>> Ugs;
-  Ugs.reserve(num_groups);
-  for (int g = 0; g < num_groups; ++g)
-  {
-    auto basis_root = "basis/basis_" + std::to_string(g);
-    auto reader_ptr = std::make_unique<CAROM::BasisReader>(basis_root);
-    auto Ug = reader_ptr->getSpatialBasis();
-    if (g == 0) romRank = Ug->numColumns();
-    Ugs.push_back(std::move(Ug));
-  }
 
   auto& phi_new_local = lbs_problem->GetPhiNewLocal();
   phi_new_local.assign(phi_new_local.size(), 0.0);
@@ -325,27 +386,93 @@ ROMProblem::SolveROM(
 }
 
 void
-ROMProblem::SetupInterpolator(CAROM::Vector& desired_point)
+ROMProblem::InitializeSolver(
+  std::shared_ptr<CAROM::Matrix>& Ar,
+  std::shared_ptr<CAROM::Matrix>& Br)
+{
+  auto Ar_inv = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
+  Ar_inv_Br = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
+
+  Ar->inverse(*Ar_inv);
+
+  Ar_inv_Br = Ar_inv->mult(*Br);
+
+  auto num_groups = lbs_problem->GetNumGroups();
+  const int total_rom_dim = num_groups * romRank;
+
+  c_prev = std::make_shared<CAROM::Vector>(total_rom_dim, false);
+  for (int i = 0; i < total_rom_dim; ++i)
+    (*c_prev)(i) = 0.0;
+
+  for (int g = 0; g < num_groups; ++g)
+  {
+    auto nrows = Ugs[g]->numRows();
+    // ones_g is the "phi = 1" vector for this group
+    CAROM::Vector ones_g(nrows, true);
+    for (int i = 0; i < nrows; ++i)
+      ones_g(i) = 1.0;
+
+    CAROM::Vector c_g(nrows, false);
+    // If U_g has orthonormal columns, c_g = U_g^T * ones_g
+    Ugs[g]->transposeMult(ones_g, c_g);
+
+    const int offset = g * romRank;
+    for (int r = 0; r < romRank; ++r)
+      (*c_prev)(offset + r) = c_g(r);
+  }
+}
+
+void
+ROMProblem::SolveROM(double k_eff)
+{
+  (*c_prev) *= 1 / k_eff;
+
+  c_vec = Ar_inv_Br->mult(*c_prev);
+
+  auto num_moments = lbs_problem->GetNumMoments();
+  auto num_groups = lbs_problem->GetNumGroups();
+  auto num_local_nodes = lbs_problem->GetLocalNodeCount();
+  auto num_local_dofs = num_local_nodes * num_moments * num_groups;
+
+  auto& phi_new_local = lbs_problem->GetPhiNewLocal();
+  phi_new_local.assign(phi_new_local.size(), 0.0);
+
+  for (int g = 0; g < num_groups; ++g)
+  {
+    for (int r = 0; r < romRank; ++r)
+    {
+      const int cr_idx = g * romRank + r;
+      const double cr  = (*c_vec)(cr_idx);
+      (*c_prev)(cr_idx) = cr;
+
+      auto col_g = Ugs[g]->getColumn(r);
+      size_t row_g = 0;
+      for (size_t n = 0; n < num_local_nodes; ++n)
+        for (size_t m = 0; m < static_cast<size_t>(num_moments); ++m, ++row_g)
+        {
+          const size_t row_phi = n * (num_moments * num_groups) + m * num_groups + static_cast<size_t>(g);
+          phi_new_local[row_phi] += cr * col_g->item(row_g);
+        }
+    }
+  }
+}
+
+void
+ROMProblem::SetupArInterpolator(CAROM::Vector& desired_point)
 {
   std::vector<std::shared_ptr<CAROM::Matrix>> Ar_matrices;
-  std::vector<std::shared_ptr<CAROM::Vector>> rhs_vectors;
 
   // Load Ar and rhs from libROM files
   for (size_t i = 0; i < param_points_.size(); ++i)
   {
     const std::string Ar_filename = "data/rom_system_Ar_" + std::to_string(i);
-    const std::string rhs_filename = "data/rom_system_br_" + std::to_string(i);
 
     // Create empty containers
     auto Ar = std::make_shared<CAROM::Matrix>();
-    auto rhs = std::make_shared<CAROM::Vector>();
 
-    // Read matrix and vector
+    // Read matrix
     Ar->local_read(Ar_filename, opensn::mpi_comm.rank());
-    rhs->local_read(rhs_filename, opensn::mpi_comm.rank());
-
     Ar_matrices.push_back(Ar);
-    rhs_vectors.push_back(rhs);
   }
 
   // Make Identity Rotations
@@ -366,9 +493,82 @@ ROMProblem::SetupInterpolator(CAROM::Vector& desired_point)
   Ar_interp_obj_ptr = std::make_unique<CAROM::MatrixInterpolator>(
     param_points_, rotations, Ar_matrices,
     ref_index, "SPD", "G", "LS", 0.999, false);
+}
+
+void
+ROMProblem::SetuprhsInterpolator(CAROM::Vector& desired_point)
+{
+  std::vector<std::shared_ptr<CAROM::Vector>> rhs_vectors;
+
+  // Load Ar and rhs from libROM files
+  for (size_t i = 0; i < param_points_.size(); ++i)
+  {
+    const std::string rhs_filename = "data/rom_system_br_" + std::to_string(i);
+
+    // Create empty containers
+    auto rhs = std::make_shared<CAROM::Vector>();
+
+    // Read vector
+    rhs->local_read(rhs_filename, opensn::mpi_comm.rank());
+    rhs_vectors.push_back(rhs);
+  }
+
+  // Make Identity Rotations
+  std::vector<std::shared_ptr<CAROM::Matrix>> rotations;
+  int rom_dim = rhs_vectors[0]->dim();
+
+  for (size_t i = 0; i < rhs_vectors.size(); ++i)
+  {
+    std::shared_ptr<CAROM::Matrix> I;
+    I = std::make_shared<CAROM::Matrix>(rom_dim, rom_dim, false);
+    for (int j = 0; j < rom_dim; ++j)
+      I->item(j, j) = 1.0;
+    rotations.push_back(I);
+  }
+
+  int ref_index = getClosestPoint(param_points_, desired_point);
+
   rhs_interp_obj_ptr = std::make_unique<CAROM::VectorInterpolator>(
     param_points_, rotations, rhs_vectors,
     ref_index, "G", "LS", 0.999, false);
+}
+
+void
+ROMProblem::SetupBrInterpolator(CAROM::Vector& desired_point)
+{
+  std::vector<std::shared_ptr<CAROM::Matrix>> Br_matrices;
+
+  // Load Ar and rhs from libROM files
+  for (size_t i = 0; i < param_points_.size(); ++i)
+  {
+    const std::string Br_filename = "data/rom_system_Br_" + std::to_string(i);
+
+    // Create empty containers
+    auto Br = std::make_shared<CAROM::Matrix>();
+
+    // Read matrix
+    Br->local_read(Br_filename, opensn::mpi_comm.rank());
+    Br_matrices.push_back(Br);
+  }
+
+  // Make Identity Rotations
+  std::vector<std::shared_ptr<CAROM::Matrix>> rotations;
+  int rom_dim = Br_matrices[0]->numRows();
+
+  for (size_t i = 0; i < Br_matrices.size(); ++i)
+  {
+    std::shared_ptr<CAROM::Matrix> I;
+    I = std::make_shared<CAROM::Matrix>(rom_dim, rom_dim, false);
+    for (int j = 0; j < rom_dim; ++j)
+      I->item(j, j) = 1.0;
+    rotations.push_back(I);
+  }
+
+  int ref_index = getClosestPoint(param_points_, desired_point);
+
+  Br_interp_obj_ptr = std::make_unique<CAROM::MatrixInterpolator>(
+    param_points_, rotations, Br_matrices,
+    ref_index, "SPD", "G", "LS", 0.999, false);
 }
 
 void 
@@ -379,6 +579,16 @@ ROMProblem::InterpolateArAndRHS(
 {
   Ar_interp = Ar_interp_obj_ptr->interpolate(desired_point);
   rhs_interp = rhs_interp_obj_ptr->interpolate(desired_point);
+}
+
+void 
+ROMProblem::InterpolateArAndBr(
+    CAROM::Vector& desired_point,
+    std::shared_ptr<CAROM::Matrix>& Ar_interp,
+    std::shared_ptr<CAROM::Matrix>& Br_interp)
+{
+  Ar_interp = Ar_interp_obj_ptr->interpolate(desired_point);
+  Br_interp = Br_interp_obj_ptr->interpolate(desired_point);
 }
 
 InputParameters
