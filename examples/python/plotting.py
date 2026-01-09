@@ -114,3 +114,28 @@ def plot_1d_flux(fom_pattern, rom_pattern, ranks, moment=0, prefix="reed_ommi", 
 
     error = np.linalg.norm(np.array(rom_vals) - np.array(fom_vals)) / np.linalg.norm(fom_vals)
     return error
+
+def plot_1d_eigenvector(fom_pattern, rom_pattern, ranks, moment=0, prefix="reed_ommi", pid=0):
+    """Compare FOM vs ROM 1-D flux."""
+    fom_x, fom_vals, G = load_1d_flux(fom_pattern, ranks, moment=moment)
+    rom_x, rom_vals, G = load_1d_flux(rom_pattern, ranks, moment=moment)
+
+    errors = []
+    for g in range(G):
+        rom_vals[g] /= np.linalg.norm(rom_vals[g])
+        rom_vals = np.abs(rom_vals)
+        fom_vals[g] /= np.linalg.norm(fom_vals[g])
+        plt.figure(figsize=(6, 4))
+        plt.plot(fom_x[g], fom_vals[g], "-", label="FOM")
+        plt.plot(rom_x[g], rom_vals[g], "--", label="ROM")
+        plt.xlabel("x")
+        plt.ylabel("Flux")
+        plt.grid()
+        plt.legend()
+        outpath = f"results/{prefix}_{pid}_g_{g}.png"
+        plt.tight_layout()
+        plt.savefig(outpath, dpi=200)
+        plt.close()
+
+    error = np.linalg.norm(np.array(rom_vals) - np.array(fom_vals)) / np.linalg.norm(fom_vals)
+    return error

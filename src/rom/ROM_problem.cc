@@ -114,7 +114,7 @@ ROMProblem::MergePhase(int nsnaps)
 
   CAROM::Options options(group_dim, max_num_snapshots, update_right_SV);
   double tol = 1e-8;
-  romRank = 10;
+  romRank = 20;
   options.setSingularValueTol(tol);
   options.setMaxBasisDimension(romRank);
 
@@ -385,49 +385,34 @@ ROMProblem::SolveROM(
   }
 }
 
-void
-ROMProblem::InitializeSolver(
+double
+ROMProblem::SolveROM(
   std::shared_ptr<CAROM::Matrix>& Ar,
   std::shared_ptr<CAROM::Matrix>& Br)
 {
   auto Ar_inv = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
-  Ar_inv_Br = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
+  auto Ar_inv_Br = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
 
   Ar->inverse(*Ar_inv);
 
   Ar_inv_Br = Ar_inv->mult(*Br);
 
-  auto num_groups = lbs_problem->GetNumGroups();
-  const int total_rom_dim = num_groups * romRank;
+  auto eigen_pair = CAROM::NonSymmetricRightEigenSolve(*Ar_inv_Br);
 
-  c_prev = std::make_shared<CAROM::Vector>(total_rom_dim, false);
-  for (int i = 0; i < total_rom_dim; ++i)
-    (*c_prev)(i) = 0.0;
+  double k_eff = 0.0;
+  int best_col = -1;
 
-  for (int g = 0; g < num_groups; ++g)
+  for (int i = 0; i < (int)eigen_pair.eigs.size(); ++i)
   {
-    auto nrows = Ugs[g]->numRows();
-    // ones_g is the "phi = 1" vector for this group
-    CAROM::Vector ones_g(nrows, true);
-    for (int i = 0; i < nrows; ++i)
-      ones_g(i) = 1.0;
-
-    CAROM::Vector c_g(nrows, false);
-    // If U_g has orthonormal columns, c_g = U_g^T * ones_g
-    Ugs[g]->transposeMult(ones_g, c_g);
-
-    const int offset = g * romRank;
-    for (int r = 0; r < romRank; ++r)
-      (*c_prev)(offset + r) = c_g(r);
+    const auto& lam = eigen_pair.eigs[i];
+    if (std::abs(lam.imag()) > 1.0e-10) continue;
+    if (lam.real() <= 0.0) continue;
+    if (lam.real() > k_eff)
+    {
+      k_eff = lam.real();
+      best_col = i;
+    }
   }
-}
-
-void
-ROMProblem::SolveROM(double k_eff)
-{
-  (*c_prev) *= 1 / k_eff;
-
-  c_vec = Ar_inv_Br->mult(*c_prev);
 
   auto num_moments = lbs_problem->GetNumMoments();
   auto num_groups = lbs_problem->GetNumGroups();
@@ -442,19 +427,20 @@ ROMProblem::SolveROM(double k_eff)
     for (int r = 0; r < romRank; ++r)
     {
       const int cr_idx = g * romRank + r;
-      const double cr  = (*c_vec)(cr_idx);
-      (*c_prev)(cr_idx) = cr;
+      const double cr  = eigen_pair.ev_real->item(cr_idx, best_col);
 
       auto col_g = Ugs[g]->getColumn(r);
       size_t row_g = 0;
-      for (size_t n = 0; n < num_local_nodes; ++n)
-        for (size_t m = 0; m < static_cast<size_t>(num_moments); ++m, ++row_g)
+      for (size_t n = 0; n < (size_t)num_local_nodes; ++n)
+        for (size_t m = 0; m < (size_t)num_moments; ++m, ++row_g)
         {
-          const size_t row_phi = n * (num_moments * num_groups) + m * num_groups + static_cast<size_t>(g);
+          const size_t row_phi =
+            n * ((size_t)num_moments * (size_t)num_groups) + m * (size_t)num_groups + (size_t)g;
           phi_new_local[row_phi] += cr * col_g->item(row_g);
         }
     }
   }
+  return k_eff;
 }
 
 void

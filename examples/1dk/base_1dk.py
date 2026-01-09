@@ -5,6 +5,7 @@
 
 import os
 import sys
+import numpy as np
 
 if "opensn_console" not in globals():
     from mpi4py import MPI
@@ -118,7 +119,6 @@ if __name__ == "__main__":
             {"block_ids": [0], "xs": scatt},
             {"block_ids": [1], "xs": fissile}
         ],
-        scattering_order=0,
         options={
             "use_precursors": False,
             "verbose_inner_iterations": False,
@@ -142,11 +142,13 @@ if __name__ == "__main__":
     rom = ROMProblem(problem=phys,options=rom_options)
 
     # Initialize and execute solver
-    k_solver = PowerIterationROMSolver(problem=phys, rom_problem=rom)
+    k_solver = PowerIterationROMSolver(problem=phys, rom_problem=rom, k_tol=1.0e-7)
     k_solver.Initialize()
     k_solver.Execute()
     
     if phase == "online":
         phys.WriteFluxMoments("output/rom")
+        np.savetxt("output/rom_k.txt", [k_solver.GetEigenvalue()])
     if phase == "offline":
         phys.WriteFluxMoments("output/fom")
+        np.savetxt("output/fom_k.txt", [k_solver.GetEigenvalue()])

@@ -67,11 +67,9 @@ public:
   void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
                 std::shared_ptr<CAROM::Vector>& rhs);
   
-  void InitializeSolver(std::shared_ptr<CAROM::Matrix>& Ar,
-                        std::shared_ptr<CAROM::Matrix>& Br);
-
-  /// Solve given LHS and RHS of a ROM system
-  void SolveROM(double k_eff);
+  /// Solve given LHS and RHS of a k-eigenvalue ROM system
+  double SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
+                  std::shared_ptr<CAROM::Matrix>& Br);
 
   /// Load Ar and initialize libROM interpolator objects
   void SetupArInterpolator(CAROM::Vector& desired_point);
@@ -98,9 +96,7 @@ protected:
   std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
   std::unique_ptr<CAROM::MatrixInterpolator> Br_interp_obj_ptr;
   std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
-  std::shared_ptr<CAROM::Matrix> Ar_inv_Br;
-  std::shared_ptr<CAROM::Vector> c_prev;
-  std::shared_ptr<CAROM::Vector> c_vec;
+
   std::shared_ptr<LBSProblem> lbs_problem;
   ROMOptions options_;
 

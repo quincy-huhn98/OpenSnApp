@@ -102,48 +102,7 @@ PowerIterationKEigenROMSolver::Execute()
 
     rom_problem_->InterpolateArAndBr(*rom_options.new_point, Ar_interp, Br_interp);
 
-    rom_problem_->InitializeSolver(Ar_interp, Br_interp);
-
-    auto& options = lbs_problem_->GetOptions();
-    double k_eff_prev = 1.0;
-    double k_eff_change = 1.0;
-
-    // Start power iterations
-    size_t nit = 0;
-    bool converged = false;
-    while (nit < max_iters_)
-    {
-      // This solves the inners for transport
-      rom_problem_->SolveROM(k_eff_);
-      const auto F_new = ComputeFissionProduction(*lbs_problem_, phi_new_local_);
-      k_eff_ = F_new / F_prev_ * k_eff_;
-      F_prev_ = F_new;
-
-      const double reactivity = (k_eff_ - 1.0) / k_eff_;
-
-      // Check convergence, bookkeeping
-      k_eff_change = fabs(k_eff_ - k_eff_prev) / k_eff_;
-      k_eff_prev = k_eff_;
-      nit += 1;
-
-      converged = k_eff_change < std::max(k_tolerance_, 1.0e-12);
-
-      // Print iteration summary
-      if (options.verbose_outer_iterations)
-      {
-        std::stringstream k_iter_info;
-        k_iter_info << "  Iteration " << std::setw(5) << nit << "  k_eff " << std::setw(11)
-                    << std::setprecision(7) << k_eff_ << "  k_eff change " << std::setw(12)
-                    << k_eff_change << "  reactivity " << std::setw(10) << reactivity * 1e5;
-        if (converged)
-          k_iter_info << " CONVERGED\n";
-
-        log.Log() << k_iter_info.str();
-      }
-
-      if (converged)
-        break;
-    } // for k iterations
+    k_eff_ = rom_problem_->SolveROM(Ar_interp, Br_interp);
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> elapsed = end - start;
@@ -159,8 +118,7 @@ PowerIterationKEigenROMSolver::Execute()
 
     log.Log() << "\n";
     log.Log() << "        Final k-eigenvalue    :        " << std::setprecision(7) << k_eff_;
-    log.Log() << "        Final change          :        " << std::setprecision(6) << k_eff_change
-              << "\n\n";
+    log.Log() << "\n\n";
 
     lbs_problem_->UpdateFieldFunctions();
 

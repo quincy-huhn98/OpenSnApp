@@ -175,7 +175,12 @@ void WrapROM(py::module& m)
              - 'merge'   : merge snapshots into bases
              - 'systems' : assemble reduced systems and write libROM files
              - 'online'  : interpolate and solve reduced system
-           )");
+           )")
+      .def("GetEigenvalue",
+            &PowerIterationKEigenROMSolver::GetEigenvalue,
+            R"(
+            Return the current k‑eigenvalue.
+            )");
 }
 // clang-format on
 

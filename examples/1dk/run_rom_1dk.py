@@ -6,8 +6,8 @@ import plotting
 import utils
 
 # Sampling training points
-bounds = [[1.9,2.1],[0.65,1.5]]
-num_params = 50
+bounds = [[1.9,2.1],[0.65,1.25]]
+num_params = 200
 
 params = utils.sample_parameter_space(bounds, num_params)
 
@@ -44,10 +44,11 @@ np.savetxt("data/params.txt", params)
 
 # Generate Test Data
 test_1 = np.random.uniform(1.9,2.1,[10,1])
-test_2 = np.random.uniform(0.65,1.5,[10,1])
+test_2 = np.random.uniform(0.65,1.25,[10,1])
 test = np.append(test_1,test_2, axis=1)
 
 errors = []
+k_errors = []
 speedups = []
 
 for i, param in enumerate(test):
@@ -67,12 +68,16 @@ for i, param in enumerate(test):
     utils.run_opensn(cmd)
     fom_time = np.loadtxt("results/offline_time.txt")
 
-    error = plotting.plot_1d_flux("output/fom{}.h5", "output/rom{}.h5", ranks=range(2), pid=i)
+    error = plotting.plot_1d_eigenvector("output/fom{}.h5", "output/rom{}.h5", ranks=range(2), pid=i)
+    k_error = np.abs(np.loadtxt("output/fom_k.txt") - np.loadtxt("output/rom_k.txt"))
 
+    k_errors.append(k_error)
     errors.append(error)
     speedups.append(fom_time/rom_time)
 
-print("Avg Error ", np.mean(errors))
+print("Avg Eigenvector Error ", np.mean(errors))
 np.savetxt("results/errors.txt", errors)
+print("Avg k Error ", np.mean(k_errors)*1e5, "pcm")
+np.savetxt("results/k_errors.txt", k_errors)
 print("Avg Speedup ", np.mean(speedups))
 np.savetxt("results/speedups.txt", speedups)
