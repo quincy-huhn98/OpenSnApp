@@ -79,6 +79,45 @@ def plot_2d_lineout(output_dir, ranks, y_target=4.0, moment=0, grid_res=200, pid
     error = np.linalg.norm(np.asarray(vals_)-np.asarray(vals))/np.linalg.norm(np.asarray(vals_))
     return error
 
+def plot_2d_lineout_eig(output_dir, ranks, y_target=4.0, moment=0, grid_res=200, pid=0):
+    """Plot lineout at y_target of ROM and FOM."""
+    xs, ys, vals, G = load_2d_flux(str(output_dir / ("fom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
+    xs_, ys_, vals_, G = load_2d_flux(str(output_dir / ("rom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
+
+    for g in range(G):
+        vals[g] /= np.linalg.norm(vals[g])
+        vals_[g] /= np.linalg.norm(vals_[g])
+        xi = np.linspace(xs[g].min(), xs[g].max(), grid_res)
+        yi = np.linspace(ys[g].min(), ys[g].max(), grid_res)
+        X, Y = np.meshgrid(xi, yi)
+
+        # Interpolate data onto grid
+        Z = scipy.interpolate.griddata((xs[g], ys[g]), vals[g], (X, Y), method="linear")
+        Z_ = scipy.interpolate.griddata((xs[g], ys[g]), vals_[g], (X, Y), method="linear")
+
+        # Find the row index closest to y=4
+        row_idx = np.argmin(np.abs(yi - y_target))
+
+        # Extract data along y = 4
+        rom_line = Z[row_idx, :]
+        fom_line = Z_[row_idx, :]
+
+        # Plot ROM vs FOM
+        plt.figure(figsize=(8,5))
+        plt.plot(xi, rom_line, label='ROM', color='blue')
+        plt.plot(xi, fom_line, label='FOM', color='orange', linestyle='--')
+        plt.xlabel('X')
+        plt.ylabel('Scalar Value')
+        plt.title(f'ROM vs FOM at y={y_target}')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"results/line_y{y_target}_rom_fom_{pid}_{g}.jpg")
+        plt.close()
+
+
+    error = np.linalg.norm(np.abs(np.asarray(vals_))-np.abs(np.asarray(vals)))/np.linalg.norm(np.asarray(vals_))
+    return error
 
 def plot_sv(num_groups):
     for i in range(num_groups):
@@ -100,6 +139,31 @@ def plot_1d_flux(fom_pattern, rom_pattern, ranks, moment=0, prefix="reed_ommi", 
 
     errors = []
     for g in range(G):
+        plt.figure(figsize=(6, 4))
+        plt.plot(fom_x[g], fom_vals[g], "-", label="FOM")
+        plt.plot(rom_x[g], rom_vals[g], "--", label="ROM")
+        plt.xlabel("x")
+        plt.ylabel("Flux")
+        plt.grid()
+        plt.legend()
+        outpath = f"results/{prefix}_{pid}_g_{g}.png"
+        plt.tight_layout()
+        plt.savefig(outpath, dpi=200)
+        plt.close()
+
+    error = np.linalg.norm(np.array(rom_vals) - np.array(fom_vals)) / np.linalg.norm(fom_vals)
+    return error
+
+def plot_1d_eigenvector(fom_pattern, rom_pattern, ranks, moment=0, prefix="reed_ommi", pid=0):
+    """Compare FOM vs ROM 1-D flux."""
+    fom_x, fom_vals, G = load_1d_flux(fom_pattern, ranks, moment=moment)
+    rom_x, rom_vals, G = load_1d_flux(rom_pattern, ranks, moment=moment)
+
+    errors = []
+    for g in range(G):
+        rom_vals[g] /= np.linalg.norm(rom_vals[g])
+        rom_vals = np.abs(rom_vals)
+        fom_vals[g] /= np.linalg.norm(fom_vals[g])
         plt.figure(figsize=(6, 4))
         plt.plot(fom_x[g], fom_vals[g], "-", label="FOM")
         plt.plot(rom_x[g], rom_vals[g], "--", label="ROM")

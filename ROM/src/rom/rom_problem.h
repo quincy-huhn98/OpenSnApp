@@ -58,8 +58,8 @@ public:
                    const std::string& rhs_filename);
 
   /// Assemble the reduced system and save to file
-  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU_, 
-                   std::shared_ptr<CAROM::Matrix>& BU_, 
+  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU, 
+                   std::shared_ptr<CAROM::Matrix>& BU, 
                    const std::string& Ar_filename,
                    const std::string& Br_filename);
 
@@ -67,17 +67,15 @@ public:
   void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
                 std::shared_ptr<CAROM::Vector>& rhs);
 
-  void InitializeSolver(std::shared_ptr<CAROM::Matrix>& Ar,
-                        std::shared_ptr<CAROM::Matrix>& Br);
-
-  /// Solve given LHS and RHS of a ROM system
-  void SolveROM(double k_eff);
+  /// Solve given LHS and RHS of a k-eigenvalue ROM system
+  double SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
+                  std::shared_ptr<CAROM::Matrix>& Br);
 
   /// Load Ar and initialize libROM interpolator objects
   void SetupArInterpolator(CAROM::Vector& desired_point);
 
   /// Load br and initialize libROM interpolator objects
-  void SetuprhsInterpolator(CAROM::Vector& desired_point);
+  void SetupRHSrInterpolator(CAROM::Vector& desired_point);
 
   /// Load Br and initialize libROM interpolator objects
   void SetupBrInterpolator(CAROM::Vector& desired_point);
@@ -95,13 +93,11 @@ public:
 protected:
   std::unique_ptr<CAROM::Matrix> spatial_basis_;
   opensn::Vector<double> b_;
-  std::vector<std::unique_ptr<CAROM::Matrix>> Ugs;
-  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
-  std::unique_ptr<CAROM::MatrixInterpolator> Br_interp_obj_ptr;
-  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
-  std::shared_ptr<CAROM::Matrix> Ar_inv_Br;
-  std::shared_ptr<CAROM::Vector> c_prev;
-  std::shared_ptr<CAROM::Vector> c_vec;
+  std::vector<std::unique_ptr<CAROM::Matrix>> Ugs_;
+  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr_;
+  std::unique_ptr<CAROM::MatrixInterpolator> Br_interp_obj_ptr_;
+  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr_;
+
   std::shared_ptr<DiscreteOrdinatesProblem> lbs_problem_;
   ROMOptions options_;
 

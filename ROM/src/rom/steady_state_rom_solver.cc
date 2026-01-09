@@ -13,6 +13,12 @@
 namespace opensn
 {
 
+
+/** Returns the input-parameter schema for SteadyStateROMSolver.
+ *
+ * Extends the steady-state source solver schema with:
+ * - `rom_problem` : an existing ROMProblem instance that manages ROM workflow.
+ */
 InputParameters
 SteadyStateROMSolver::GetInputParameters()
 {
@@ -38,6 +44,14 @@ SteadyStateROMSolver::Initialize()
 {
 }
 
+/** Executes the requested ROM workflow phase for the steady-state solver.
+ *
+ * Supported phases are:
+ * - OFFLINE : solves the full-order system and writes snapshots,
+ * - MERGE   : builds the reduced bases from stored snapshots,
+ * - SYSTEMS : assembles and writes reduced operators,
+ * - ONLINE  : interpolates and solves the reduced system.
+ */
 void
 SteadyStateROMSolver::Execute()
 {
@@ -86,7 +100,7 @@ SteadyStateROMSolver::Execute()
     std::shared_ptr<CAROM::Matrix> Ar_interp;
     std::shared_ptr<CAROM::Vector> rhs_interp;
     rom_problem_->SetupArInterpolator(*rom_options.new_point);
-    rom_problem_->SetuprhsInterpolator(*rom_options.new_point);
+    rom_problem_->SetupRHSrInterpolator(*rom_options.new_point);
 
     auto start = std::chrono::high_resolution_clock::now();
 

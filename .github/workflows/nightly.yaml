@@ -49,6 +49,7 @@ jobs:
           cd ROM
           export PYTHONPATH=$PWD/python
           cd examples/reed && python3 run_rom_reed.py --exe ../../build/rom_app_exec
+          cd ../1dk && python3 run_rom_P58.py --exe ../../build/rom_app_exec
       - name: compile diffusion
         shell: bash
         run: |

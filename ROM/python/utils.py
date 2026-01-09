@@ -1,6 +1,8 @@
 import numpy as np
 import subprocess
 import h5py
+from scipy.stats import qmc
+
 
 def load_2d_flux(file_pattern, ranks, moment=0):
     """Load (x, y, flux) grouped by energy group from HDF5 files."""
@@ -86,33 +88,28 @@ def sample_parameter_space(bounds, n_samples):
     samples = np.vstack([random_samples, vertices])
     return samples
 
+def sample_LHS(bounds, n_samples):
+    """Performs Latin Hypercube Sampling on a set of bounds"""
+    d = len(bounds)
 
-def update_xs(in_file, out_file, sigma_t_vec, S):
-    """Writes a OpenSn .xs file replacing cross sections with user supplied values"""
-    with open(in_file, "r") as f:
-        lines = f.readlines()
+    # Create LHS sampler
+    sampler = qmc.LatinHypercube(d=d)
 
-    # --- SIGMA_T block ---
-    b = next(i for i, s in enumerate(lines) if "SIGMA_T_BEGIN" in s)
-    e = next(i for i, s in enumerate(lines) if "SIGMA_T_END"   in s)
-    for i in range(b+1, e):
-        toks = lines[i].split()
-        g = int(toks[0])
-        toks[1] = f"{float(sigma_t_vec[g]):.12g}"
-        lines[i] = " ".join(toks) + "\n"
+    # Generate samples in [0, 1]^d
+    unit_samples = sampler.random(n=n_samples)
 
-    # --- TRANSFER_MOMENTS block ---
-    tb = next(i for i, s in enumerate(lines) if "TRANSFER_MOMENTS_BEGIN" in s)
-    te = next(i for i, s in enumerate(lines) if "TRANSFER_MOMENTS_END"   in s)
+    # Scale to physical bounds
+    lows  = np.array([low for (low, high) in bounds])
+    highs = np.array([high for (low, high) in bounds])
 
-    G = len(sigma_t_vec)
-    new_tm = []
-    for gprime in range(G):
-        for g in range(G):
-            val = float(S[gprime][g])
-            new_tm.append(f"M_GFROM_GTO_VAL 0 {gprime} {g} {val:.12g}\n")
+    samples = qmc.scale(unit_samples, lows, highs)
+    return samples
 
-    lines[tb+1:te] = new_tm
+def sample_test(bounds, n_samples):
+    """Performs uniform sampling on a set of bounds to generate a test set"""
+    samples = np.array([
+        [np.random.uniform(low, high) for (low, high) in bounds]
+        for _ in range(n_samples)
+    ])
 
-    with open(out_file, "w") as f:
-        f.writelines(lines)
+    return samples

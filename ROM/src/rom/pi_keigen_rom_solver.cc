@@ -1,10 +1,9 @@
-// SPDX-FileCopyrightText: 2025 The OpenSn Authors <https://open-sn.github.io/opensn/>
+// SPDX-FileCopyrightText: 2026 The OpenSn Authors <https://open-sn.github.io/opensn/>
 // SPDX-License-Identifier: MIT
 
-#include "pi_keigen_rom_solver.h"
-#include "modules/linear_boltzmann_solvers/lbs_problem/lbs_compute.h"
+#include "modules/linear_boltzmann_solvers/lbs_problem/compute/lbs_compute.h"
 #include "framework/runtime.h"
-
+#include "pi_keigen_rom_solver.h"
 #include <chrono>
 #include <fstream>
 #include <memory>
@@ -12,6 +11,11 @@
 namespace opensn
 {
 
+/** Returns the input-parameter schema for PowerIterationKEigenROMSolver.
+ *
+ * Extends the base power-iteration k-eigen solver schema with:
+ * - `rom_problem` : an existing ROMProblem instance that manages ROM workflow.
+ */
 InputParameters
 PowerIterationKEigenROMSolver::GetInputParameters()
 {
@@ -31,7 +35,7 @@ PowerIterationKEigenROMSolver::GetInputParameters()
 
 PowerIterationKEigenROMSolver::PowerIterationKEigenROMSolver(const InputParameters& params)
   : PowerIterationKEigenSolver(params),
-    lbs_problem_(params.GetSharedPtrParam<Problem, LBSProblem>("problem")), 
+    lbs_problem_(params.GetSharedPtrParam<Problem, DiscreteOrdinatesProblem>("problem")), 
     rom_problem_(params.GetSharedPtrParam<Problem, ROMProblem>("rom_problem"))
 {
 }
@@ -42,13 +46,21 @@ PowerIterationKEigenROMSolver::Initialize()
   PowerIterationKEigenSolver::Initialize();
 }
 
+/** Executes the requested ROM workflow phase for the k-eigenvalue solver.
+ *
+ * Supported phases are:
+ * - OFFLINE : runs the full-order power iteration and writes snapshots,
+ * - MERGE   : builds the reduced bases from stored snapshots,
+ * - SYSTEMS : assembles and writes reduced operators,
+ * - ONLINE  : interpolates and solves the reduced k-eigenvalue system.
+ */
 void
 PowerIterationKEigenROMSolver::Execute()
 {
   auto& rom_options = rom_problem_->GetOptions();
   auto& options = lbs_problem_->GetOptions();
 
-  if (rom_options.phase == "offline")
+  if (rom_options.phase == Phase::OFFLINE)
   {
     // Run full-order k-eigen solve and time it
     auto start = std::chrono::high_resolution_clock::now();
@@ -60,7 +72,7 @@ PowerIterationKEigenROMSolver::Execute()
 
     if (opensn::mpi_comm.rank() == 0)
     {
-      std::ofstream outfile("results/offline_time.txt");
+      std::ofstream outfile("results/offline_time_" + std::to_string(rom_options.param_id) + ".txt");
       if (outfile.is_open())
       {
         outfile << elapsed.count() << std::endl;
@@ -70,14 +82,14 @@ PowerIterationKEigenROMSolver::Execute()
 
     rom_problem_->TakeSample(rom_options.param_id);
   }
-  else if (rom_options.phase == "merge")
+  if (rom_options.phase == Phase::MERGE)
   {
     rom_problem_->MergePhase(rom_options.param_id);
   }
-  else if (rom_options.phase == "systems")
+  if (rom_options.phase == Phase::SYSTEMS)
   {
-    rom_problem_->LoadUgs();
     std::shared_ptr<CAROM::Matrix> AU_ = rom_problem_->AssembleAU();
+    rom_problem_->LoadUgs();
     std::shared_ptr<CAROM::Matrix> BU_ = rom_problem_->AssembleBU();
 
     const std::string Ar_filename  =
@@ -87,7 +99,7 @@ PowerIterationKEigenROMSolver::Execute()
 
     rom_problem_->AssembleROM(AU_, BU_, Ar_filename, Br_filename);
   }
-  else if (rom_options.phase == "online")
+  if (rom_options.phase == Phase::ONLINE)
   {
     rom_problem_->ReadParamMatrix(rom_options.param_file);
     rom_problem_->LoadUgs();
@@ -102,54 +114,13 @@ PowerIterationKEigenROMSolver::Execute()
 
     rom_problem_->InterpolateArAndBr(*rom_options.new_point, Ar_interp, Br_interp);
 
-    rom_problem_->InitializeSolver(Ar_interp, Br_interp);
-
-    auto& options = lbs_problem_->GetOptions();
-    double k_eff_prev = 1.0;
-    double k_eff_change = 1.0;
-
-    // Start power iterations
-    size_t nit = 0;
-    bool converged = false;
-    while (nit < max_iters_)
-    {
-      // This solves the inners for transport
-      rom_problem_->SolveROM(k_eff_);
-      const auto F_new = ComputeFissionProduction(*lbs_problem_, phi_new_local_);
-      k_eff_ = F_new / F_prev_ * k_eff_;
-      F_prev_ = F_new;
-
-      const double reactivity = (k_eff_ - 1.0) / k_eff_;
-
-      // Check convergence, bookkeeping
-      k_eff_change = fabs(k_eff_ - k_eff_prev) / k_eff_;
-      k_eff_prev = k_eff_;
-      nit += 1;
-
-      converged = k_eff_change < std::max(k_tolerance_, 1.0e-12);
-
-      // Print iteration summary
-      if (options.verbose_outer_iterations)
-      {
-        std::stringstream k_iter_info;
-        k_iter_info << "  Iteration " << std::setw(5) << nit << "  k_eff " << std::setw(11)
-                    << std::setprecision(7) << k_eff_ << "  k_eff change " << std::setw(12)
-                    << k_eff_change << "  reactivity " << std::setw(10) << reactivity * 1e5;
-        if (converged)
-          k_iter_info << " CONVERGED\n";
-
-        log.Log() << k_iter_info.str();
-      }
-
-      if (converged)
-        break;
-    } // for k iterations
+    k_eff_ = rom_problem_->SolveROM(Ar_interp, Br_interp);
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> elapsed = end - start;
     if (opensn::mpi_comm.rank() == 0)
     {
-      std::ofstream outfile("results/online_time.txt");
+      std::ofstream outfile("results/online_time_" + std::to_string(rom_options.param_id) + ".txt");
       if (outfile.is_open())
       {
         outfile << elapsed.count() << std::endl;
@@ -159,10 +130,7 @@ PowerIterationKEigenROMSolver::Execute()
 
     log.Log() << "\n";
     log.Log() << "        Final k-eigenvalue    :        " << std::setprecision(7) << k_eff_;
-    log.Log() << "        Final change          :        " << std::setprecision(6) << k_eff_change
-              << "\n\n";
-
-    lbs_problem_->UpdateFieldFunctions();
+    log.Log() << "\n\n";
 
     log.Log() << "LinearBoltzmann::KEigenvalueROMSolver execution completed\n\n";
   }

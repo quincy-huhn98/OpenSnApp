@@ -26,6 +26,8 @@ def make_opensn_args(phase, pid, pvec, save_h5=False):
 
     if save_h5:
         args.extend(["-p", "saveh5=True"])
+    else:
+        args.extend(["-p", "saveh5=False"])
 
     return args
 

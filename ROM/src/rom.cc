@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "py_wrappers.h"
-<<<<<<< HEAD
 #include "rom/rom_problem.h"
-=======
-#include "rom/ROM_problem.h"
->>>>>>> dd951c6 (ROM App)
 #include "rom/steady_state_rom_solver.h"
 #include "rom/pi_keigen_rom_solver.h"
 #include "modules/solver.h"
@@ -179,7 +175,12 @@ void WrapROM(py::module& m)
              - 'merge'   : merge snapshots into bases
              - 'systems' : assemble reduced systems and write libROM files
              - 'online'  : interpolate and solve reduced system
-           )");
+           )")
+      .def("GetEigenvalue",
+            &PowerIterationKEigenROMSolver::GetEigenvalue,
+            R"(
+            Return the current k‑eigenvalue.
+            )");
 }
 // clang-format on
 
