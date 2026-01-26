@@ -23,18 +23,39 @@ if "opensn_console" not in globals():
 if __name__ == "__main__":
 
     try:
-        print("Nu Parameter = {}".format(nu))
-        param = nu
+        print("Parameter 1= {}".format(p1))
+        param1 = p1
     except:
-        nu=1.99
-        print("Nu Nominal = {}".format(nu))
+        param1 = 0.35
+        print("Parameter 1 Nominal = {}".format(param1))
 
     try:
-        print("Cross Section Parameter = {}".format(sigma_f))
-        param = sigma_f
+        print("Parameter 2= {}".format(p2))
+        param2 = p2
     except:
-        sigma_f=0.35
-        print("Cross Section Nominal = {}".format(sigma_f))
+        param2 = 0.35
+        print("Parameter 2 Nominal = {}".format(param2))
+
+    try:
+        print("Parameter 3= {}".format(p3))
+        param3 = p3
+    except:
+        param3 = 0.3
+        print("Parameter 3 Nominal = {}".format(param3))
+
+    try:
+        print("Parameter 4= {}".format(p4))
+        param4 = p4
+    except:
+        param4 = 0.5
+        print("Parameter 4 Nominal = {}".format(param4))
+
+    try:
+        print("Parameter 5= {}".format(p5))
+        param5 = p5
+    except:
+        param5 = 0.5
+        print("Parameter 5 Nominal = {}".format(param5))
 
     try:
         print("Parameter id = {}".format(p_id))
@@ -131,7 +152,7 @@ if __name__ == "__main__":
                 "param_id": 0,
                 "phase": phase,
                 "param_file": "data/params.txt",
-                "new_point": [nu, sigma_f]
+                "new_point": [param1, param2, param3, param4, param5]
             }
     else:
         rom_options = {

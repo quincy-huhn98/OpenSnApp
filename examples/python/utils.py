@@ -95,9 +95,67 @@ def sample_parameter_space(bounds, n_samples):
     return samples
 
 
-def update_xs(in_file, out_file, sigma_t_vec, S):
+def update_xs(in_file, out_file, sigma_a_vec, S):
     with open(in_file, "r") as f:
         lines = f.readlines()
+
+    # --- TRANSFER_MOMENTS block ---
+    tb = next(i for i, s in enumerate(lines) if "TRANSFER_MOMENTS_BEGIN" in s)
+    te = next(i for i, s in enumerate(lines) if "TRANSFER_MOMENTS_END"   in s)
+
+    sigma_s_vec = np.zeros_like(sigma_a_vec)
+    G = len(sigma_a_vec)
+    new_tm = []
+    for gprime in range(G):
+        for g in range(G):
+            val = float(S[gprime][g])
+            new_tm.append(f"M_GPRIME_G_VAL 0 {gprime} {g} {val:.12g}\n")
+            sigma_s_vec[gprime] += val
+
+    lines[tb+1:te] = new_tm
+
+    # --- SIGMA_T block ---
+    b = next(i for i, s in enumerate(lines) if "SIGMA_T_BEGIN" in s)
+    e = next(i for i, s in enumerate(lines) if "SIGMA_T_END"   in s)
+    for i in range(b+1, e):
+        toks = lines[i].split()
+        g = int(toks[0])
+        sigma_t = sigma_a_vec[g] + sigma_s_vec[g]
+        toks[1] = f"{float(sigma_t):.12g}"
+        lines[i] = " ".join(toks) + "\n"
+
+    with open(out_file, "w") as f:
+        f.writelines(lines)
+
+def update_fission_xs(in_file, out_file, sigma_f_vec, sigma_c_vec, S):
+    with open(in_file, "r") as f:
+        lines = f.readlines()
+
+    # --- TRANSFER_MOMENTS block ---
+    tb = next(i for i, s in enumerate(lines) if "TRANSFER_MOMENTS_BEGIN" in s)
+    te = next(i for i, s in enumerate(lines) if "TRANSFER_MOMENTS_END"   in s)
+
+    sigma_s_vec = np.zeros_like(sigma_f_vec)
+    sigma_t_vec = np.zeros_like(sigma_f_vec)
+    G = len(sigma_t_vec)
+    new_tm = []
+    for gprime in range(G):
+        for g in range(G):
+            val = float(S[gprime][g])
+            new_tm.append(f"M_GPRIME_G_VAL 0 {gprime} {g} {val:.12g}\n")
+            sigma_s_vec[gprime] += val
+
+    lines[tb+1:te] = new_tm
+
+    # --- SIGMA_F block ---
+    b = next(i for i, s in enumerate(lines) if "SIGMA_F_BEGIN" in s)
+    e = next(i for i, s in enumerate(lines) if "SIGMA_F_END"   in s)
+    for i in range(b+1, e):
+        toks = lines[i].split()
+        g = int(toks[0])
+        toks[1] = f"{float(sigma_f_vec[g]):.12g}"
+        lines[i] = " ".join(toks) + "\n"
+        sigma_t_vec[g] = sigma_f_vec[g] + sigma_c_vec[g] + sigma_s_vec[g]
 
     # --- SIGMA_T block ---
     b = next(i for i, s in enumerate(lines) if "SIGMA_T_BEGIN" in s)
@@ -106,45 +164,6 @@ def update_xs(in_file, out_file, sigma_t_vec, S):
         toks = lines[i].split()
         g = int(toks[0])
         toks[1] = f"{float(sigma_t_vec[g]):.12g}"
-        lines[i] = " ".join(toks) + "\n"
-
-    # --- TRANSFER_MOMENTS block ---
-    tb = next(i for i, s in enumerate(lines) if "TRANSFER_MOMENTS_BEGIN" in s)
-    te = next(i for i, s in enumerate(lines) if "TRANSFER_MOMENTS_END"   in s)
-
-    G = len(sigma_t_vec)
-    new_tm = []
-    for gprime in range(G):
-        for g in range(G):
-            val = float(S[gprime][g])
-            new_tm.append(f"M_GPRIME_G_VAL 0 {gprime} {g} {val:.12g}\n")
-
-    lines[tb+1:te] = new_tm
-
-    with open(out_file, "w") as f:
-        f.writelines(lines)
-
-def update_fission_xs(in_file, out_file, nu, sigma_f_vec):
-    with open(in_file, "r") as f:
-        lines = f.readlines()
-
-    # --- SIGMA_T block ---
-    b = next(i for i, s in enumerate(lines) if "SIGMA_T_BEGIN" in s)
-    e = next(i for i, s in enumerate(lines) if "SIGMA_T_END"   in s)
-    for i in range(b+1, e):
-        toks = lines[i].split()
-        g = int(toks[0])
-        toks[1] = f"{float(sigma_f_vec[g]):.12g}"
-        lines[i] = " ".join(toks) + "\n"
-
-    # --- NU_PROMPT block ---
-    nb = next(i for i, s in enumerate(lines) if "NU_PROMPT_BEGIN" in s)
-    ne = next(i for i, s in enumerate(lines) if "NU_PROMPT_END"   in s)
-
-    for i in range(nb+1, ne):
-        toks = lines[i].split()
-        g = int(toks[0])
-        toks[1] = f"{float(nu[g]):.12g}"
         lines[i] = " ".join(toks) + "\n"
 
     with open(out_file, "w") as f:
