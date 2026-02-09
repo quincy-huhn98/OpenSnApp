@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 The OpenSn Authors <https://open-sn.github.io/opensn/>
+// SPDX-FileCopyrightText: 2025 The OpenSn Authors <https://open-sn.github.io/opensn/>
 // SPDX-License-Identifier: MIT
 
 #include "modules/linear_boltzmann_solvers/lbs_problem/lbs_problem.h"
@@ -45,7 +45,7 @@ ROMProblem::Create(const ParameterBlock& params)
 
 ROMProblem::ROMProblem(const InputParameters& params)
   : Problem(params),
-  lbs_problem(params.GetSharedPtrParam<Problem, LBSProblem>("problem"))
+  lbs_problem_(params.GetSharedPtrParam<Problem, LBSProblem>("problem"))
 {
   // Initialize options
   if (params.IsParameterValid("options"))
@@ -64,10 +64,10 @@ ROMProblem::TakeSample(int id)
   bool isIncremental = false;
   const std::string basisName = "basis/snapshots_";
 
-  auto num_moments = lbs_problem->GetNumMoments();
-  auto num_groups = lbs_problem->GetNumGroups();
-  auto num_local_nodes  = lbs_problem->GetLocalNodeCount();
-  std::vector<double> phi_new_local = lbs_problem->GetPhiNewLocal();
+  auto num_moments = lbs_problem_->GetNumMoments();
+  auto num_groups = lbs_problem_->GetNumGroups();
+  auto num_local_nodes  = lbs_problem_->GetLocalNodeCount();
+  std::vector<double> phi_new_local = lbs_problem_->GetPhiNewLocal();
 
   for (int g = 0; g < num_groups; ++g)
   {
@@ -106,17 +106,17 @@ ROMProblem::MergePhase(int nsnaps)
   int max_num_snapshots = 300;
   bool isIncremental = false;
 
-  auto num_moments = lbs_problem->GetNumMoments();
-  auto num_groups = lbs_problem->GetNumGroups();
-  auto num_local_nodes  = lbs_problem->GetLocalNodeCount();
+  auto num_moments = lbs_problem_->GetNumMoments();
+  auto num_groups = lbs_problem_->GetNumGroups();
+  auto num_local_nodes  = lbs_problem_->GetLocalNodeCount();
   auto group_dim = num_local_nodes * num_moments;
   auto full_dim = num_local_nodes * num_moments * num_groups;
 
   CAROM::Options options(group_dim, max_num_snapshots, update_right_SV);
-  double tol = 1e-20;
-  romRank = 20;
+  double tol = 1e-8;
+  rom_rank = 20;
   options.setSingularValueTol(tol);
-  options.setMaxBasisDimension(romRank);
+  options.setMaxBasisDimension(rom_rank);
 
   for (auto g = 0; g < num_groups; ++g)
   {
@@ -148,7 +148,7 @@ ROMProblem::MergePhase(int nsnaps)
 void
 ROMProblem::ReadParamMatrix(const std::string& filename)
 {
-  param_points_.clear();
+  param_points.clear();
 
   std::ifstream infile(filename);
   std::string line;
@@ -162,16 +162,16 @@ ROMProblem::ReadParamMatrix(const std::string& filename)
       row.push_back(val);
 
     if (!row.empty())
-      param_points_.emplace_back(row.data(), static_cast<int>(row.size()),false,true);
+      param_points.emplace_back(row.data(), static_cast<int>(row.size()),false,true);
   }
 }
 
 std::shared_ptr<CAROM::Matrix>
 ROMProblem::AssembleAU()
 {
-  auto num_moments = lbs_problem->GetNumMoments();
-  auto num_groups = lbs_problem->GetNumGroups();
-  auto num_local_nodes  = lbs_problem->GetLocalNodeCount();
+  auto num_moments = lbs_problem_->GetNumMoments();
+  auto num_groups = lbs_problem_->GetNumGroups();
+  auto num_local_nodes  = lbs_problem_->GetLocalNodeCount();
   const auto num_local_dofs = num_local_nodes * num_moments * num_groups;
 
   std::vector<std::unique_ptr<CAROM::Matrix>> Ugs;
@@ -181,24 +181,24 @@ ROMProblem::AssembleAU()
     const auto basis_root = "basis/basis_" + std::to_string(g);
     auto reader = std::make_unique<CAROM::BasisReader>(basis_root);
     auto Ug = reader->getSpatialBasis();
-    if (g == 0) romRank = Ug->numColumns();
+    if (g == 0) rom_rank = Ug->numColumns();
     Ugs.push_back(std::move(Ug));
   }
 
-  auto AU = std::make_shared<CAROM::Matrix>(num_local_dofs, romRank * num_groups, true);
+  auto AU = std::make_shared<CAROM::Matrix>(num_local_dofs, rom_rank * num_groups, true);
 
   // Assuming one groupset for ROM problems
-  auto wgs_solvers = lbs_problem->GetWGSSolvers();
+  auto wgs_solvers = lbs_problem_->GetWGSSolvers();
   auto raw_context   = wgs_solvers.front()->GetContext();
   auto gs_context    = std::dynamic_pointer_cast<WGSContext>(raw_context);
   const auto scope   = gs_context->lhs_src_scope;
 
-  auto& phi_old_local = lbs_problem->GetPhiOldLocal();
-  auto& q_moments_local = lbs_problem->GetQMomentsLocal();
+  auto& phi_old_local = lbs_problem_->GetPhiOldLocal();
+  auto& q_moments_local = lbs_problem_->GetQMomentsLocal();
   
   for (auto g = 0; g < num_groups; ++g)
   {
-    for (auto r = 0; r < romRank; ++r)
+    for (auto r = 0; r < rom_rank; ++r)
     {
       std::vector<double> basis_local(num_local_dofs, 0.0);
       phi_old_local.assign(phi_old_local.size(), 0.0);
@@ -217,9 +217,9 @@ ROMProblem::AssembleAU()
 
       // Sweep
       gs_context->ApplyInverseTransportOperator(scope);
-      std::vector<double> phi_new_local = lbs_problem->GetPhiNewLocal();
+      std::vector<double> phi_new_local = lbs_problem_->GetPhiNewLocal();
 
-      const auto col_idx = g * romRank + r;
+      const auto col_idx = g * rom_rank + r;
       for (size_t i = 0; i < static_cast<size_t>(num_local_dofs); ++i)
         AU->item(i, static_cast<int>(col_idx)) = basis_local[i] - phi_new_local[i];
     }
@@ -230,27 +230,27 @@ ROMProblem::AssembleAU()
 std::shared_ptr<CAROM::Vector> 
 ROMProblem::AssembleRHS()
 {
-  auto num_moments = lbs_problem->GetNumMoments();
-  auto num_groups = lbs_problem->GetNumGroups();
-  auto num_local_nodes = lbs_problem->GetLocalNodeCount();
+  auto num_moments = lbs_problem_->GetNumMoments();
+  auto num_groups = lbs_problem_->GetNumGroups();
+  auto num_local_nodes = lbs_problem_->GetLocalNodeCount();
   auto num_local_dofs = num_local_nodes * num_moments * num_groups;
   auto b = std::make_shared<CAROM::Vector>(num_local_dofs, true);
 
   // Assuming one groupset for ROM problems
-  auto wgs_solvers = lbs_problem->GetWGSSolvers();
+  auto wgs_solvers = lbs_problem_->GetWGSSolvers();
   auto raw_context = wgs_solvers.front()->GetContext();
   auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
   auto scope = gs_context_ptr->rhs_src_scope;
 
-  auto& phi_old_local = lbs_problem->GetPhiOldLocal();
-  auto& q_moments_local = lbs_problem->GetQMomentsLocal();
+  auto& phi_old_local = lbs_problem_->GetPhiOldLocal();
+  auto& q_moments_local = lbs_problem_->GetQMomentsLocal();
 
   q_moments_local.assign(q_moments_local.size(), 0.0);
   gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local, phi_old_local, scope);
 
   // Sweep
   gs_context_ptr->ApplyInverseTransportOperator(scope);
-  std::vector<double> phi_new_local = lbs_problem->GetPhiNewLocal();
+  std::vector<double> phi_new_local = lbs_problem_->GetPhiNewLocal();
 
   for (int i = 0; i < num_local_dofs; ++i)
     (*b)(i) = phi_new_local[i];
@@ -286,9 +286,9 @@ ROMProblem::SolveROM(
 
   auto c_vec = Ar_inv->mult(*rhs);
 
-  auto num_moments = lbs_problem->GetNumMoments();
-  auto num_groups = lbs_problem->GetNumGroups();
-  auto num_local_nodes = lbs_problem->GetLocalNodeCount();
+  auto num_moments = lbs_problem_->GetNumMoments();
+  auto num_groups = lbs_problem_->GetNumGroups();
+  auto num_local_nodes = lbs_problem_->GetLocalNodeCount();
   auto num_local_dofs = num_local_nodes * num_moments * num_groups;
 
   std::vector<std::unique_ptr<CAROM::Matrix>> Ugs;
@@ -298,18 +298,18 @@ ROMProblem::SolveROM(
     auto basis_root = "basis/basis_" + std::to_string(g);
     auto reader_ptr = std::make_unique<CAROM::BasisReader>(basis_root);
     auto Ug = reader_ptr->getSpatialBasis();
-    if (g == 0) romRank = Ug->numColumns();
+    if (g == 0) rom_rank = Ug->numColumns();
     Ugs.push_back(std::move(Ug));
   }
 
-  auto& phi_new_local = lbs_problem->GetPhiNewLocal();
+  auto& phi_new_local = lbs_problem_->GetPhiNewLocal();
   phi_new_local.assign(phi_new_local.size(), 0.0);
 
   for (int g = 0; g < num_groups; ++g)
   {
-    for (int r = 0; r < romRank; ++r)
+    for (int r = 0; r < rom_rank; ++r)
     {
-      const int cr_idx = g * romRank + r;
+      const int cr_idx = g * rom_rank + r;
       const double cr  = (*c_vec)(cr_idx);
 
       auto col_g = Ugs[g]->getColumn(r);
@@ -331,7 +331,7 @@ ROMProblem::SetupInterpolator(CAROM::Vector& desired_point)
   std::vector<std::shared_ptr<CAROM::Vector>> rhs_vectors;
 
   // Load Ar and rhs from libROM files
-  for (size_t i = 0; i < param_points_.size(); ++i)
+  for (size_t i = 0; i < param_points.size(); ++i)
   {
     const std::string Ar_filename = "data/rom_system_Ar_" + std::to_string(i);
     const std::string rhs_filename = "data/rom_system_br_" + std::to_string(i);
@@ -361,13 +361,13 @@ ROMProblem::SetupInterpolator(CAROM::Vector& desired_point)
     rotations.push_back(I);
   }
 
-  int ref_index = getClosestPoint(param_points_, desired_point);
+  int ref_index = getClosestPoint(param_points, desired_point);
 
-  Ar_interp_obj_ptr = std::make_unique<CAROM::MatrixInterpolator>(
-    param_points_, rotations, Ar_matrices,
+  Ar_interp_obj_ptr_ = std::make_unique<CAROM::MatrixInterpolator>(
+    param_points, rotations, Ar_matrices,
     ref_index, "SPD", "G", "LS", 0.999, false);
-  rhs_interp_obj_ptr = std::make_unique<CAROM::VectorInterpolator>(
-    param_points_, rotations, rhs_vectors,
+  rhs_interp_obj_ptr_ = std::make_unique<CAROM::VectorInterpolator>(
+    param_points, rotations, rhs_vectors,
     ref_index, "G", "LS", 0.999, false);
 }
 
@@ -377,8 +377,8 @@ ROMProblem::InterpolateArAndRHS(
     std::shared_ptr<CAROM::Matrix>& Ar_interp,
     std::shared_ptr<CAROM::Vector>& rhs_interp)
 {
-  Ar_interp = Ar_interp_obj_ptr->interpolate(desired_point);
-  rhs_interp = rhs_interp_obj_ptr->interpolate(desired_point);
+  Ar_interp = Ar_interp_obj_ptr_->interpolate(desired_point);
+  rhs_interp = rhs_interp_obj_ptr_->interpolate(desired_point);
 }
 
 InputParameters
@@ -388,9 +388,10 @@ ROMProblem::GetOptionsBlock()
 
   params.SetGeneralDescription("Set options from a list of parameters");
   params.AddOptionalParameter("param_id", 0, "A parameter id for parametric problems.");
-  params.AddOptionalParameter("phase", "offline", "The phase (offline, online, or merge) for ROM purposes.");
+  params.AddOptionalParameter("phase", "offline", "The phase (offline, online, systems, or merge) for ROM purposes.");
   params.AddOptionalParameter("param_file", "", "A file containing an array of parameters for ROM.");
   params.AddOptionalParameterArray<double>("new_point", {0.0}, "New parameter point for ROM.");
+  params.ConstrainParameterRange("phase", AllowableRangeList::New({"offline", "merge", "systems", "online"}));
 
   return params;
 }
@@ -409,8 +410,18 @@ ROMProblem::SetOptions(const InputParameters& input)
       options_.param_id = spec.GetValue<int>();
 
     else if (spec.GetName() == "phase")
-      options_.phase = spec.GetValue<std::string>();
-
+    {
+      const std::map<std::string, Phase> phase_map =
+      {
+        {"offline", Phase::OFFLINE},
+        {"merge",   Phase::MERGE},
+        {"systems", Phase::SYSTEMS},
+        {"online",  Phase::ONLINE}
+      };
+      const std::string phase_str = spec.GetValue<std::string>();
+      auto it = phase_map.find(phase_str);
+      options_.phase = it->second;
+    }
     else if (spec.GetName() == "param_file")
       options_.param_file = spec.GetValue<std::string>();
 

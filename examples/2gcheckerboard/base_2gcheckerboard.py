@@ -25,64 +25,12 @@ if "opensn_console" not in globals():
 if __name__ == "__main__":
 
     try:
-        print("Absorber Sigma_a Parameter = {}".format(abs_1))
-        param = abs_1
-    except:
-        abs_1=10.0
-        print("Absorber Sigma_a Nominal = {}".format(abs_1))
-
-    try:
-        print("Absorber Sigma_s Parameter = {}".format(scatt_1))
-        param = scatt_1
-    except:
-        scatt_1=10.0
-        print("Absorber Sigma_s Nominal = {}".format(scatt_1))
-
-
-    try:
-        print("Scatterer Sigma_a Parameter = {}".format(abs_2))
-        param = abs_2
-    except:
-        abs_2=0.0
-        print("Scatterer Sigma_a Nominal = {}".format(abs_2))
-
-    try:
-        print("Scatterer Sigma_s Parameter = {}".format(scatt_2))
-        param = scatt_2
-    except:
-        scatt_2=1.0
-        print("Scatterer Sigma_s Nominal = {}".format(scatt_2))
-
-
-    try:
-        print("Source Parameter = {}".format(param_q))
-        param = param_q
-    except:
-        param_q=1.0
-        print("Source Nominal = {}".format(param_q))
-
-    try:
         print("Parameter id = {}".format(p_id))
     except:
         p_id=0
         print("Parameter id = {}".format(p_id))
 
-    try:
-        if phase == 0:
-            print("Offline Phase")
-            phase = "offline"
-        elif phase == 1:
-            print("Merge Phase")
-            phase = "merge"
-        elif phase == 2:
-            print("Systems Phase")
-            phase = "systems"
-        elif phase == 3:
-            print("Online Phase")
-            phase = "online"
-    except:
-        phase="offline"
-        print("Phase default to offline")
+    print("{} phase".format(phase))
 
     # Check number of processors
     num_procs = 4
@@ -138,9 +86,7 @@ if __name__ == "__main__":
     absorber = MultiGroupXS()
     absorber.LoadFromOpenSn("data/absorber.xs")
 
-    strength = [0.0 for _ in range(num_groups)]
-    src0 = VolumetricSource(block_ids=[0], group_strength=strength)
-    strength[0] = param_q
+    strength = [1.0, 0.0]
     src1 = VolumetricSource(block_ids=[1], group_strength=strength)
 
     # Setup Physics
@@ -148,14 +94,14 @@ if __name__ == "__main__":
 
     if phase == "online":
         rom_options={
-            "param_id":0,
+            "param_id":pid,
             "phase":phase,
             "param_file":"data/params.txt",
-            "new_point":[scatt_1, abs_1]
+            "new_point":[p0, p1]
         }
     else:
         rom_options={
-            "param_id":p_id,
+            "param_id":pid,
             "phase":phase
         }
     
@@ -177,7 +123,7 @@ if __name__ == "__main__":
             {"block_ids": [0, 1], "xs": scatterer},
             {"block_ids": [2], "xs": absorber}
         ],
-        volumetric_sources=[src0, src1]
+        volumetric_sources=[src1]
     )
 
     rom = ROMProblem(problem=phys,options=rom_options)
@@ -186,7 +132,13 @@ if __name__ == "__main__":
     ss_solver.Initialize()
     ss_solver.Execute()
 
-    if phase == "online":
-        phys.WriteFluxMoments("output/rom")
-    if phase == "offline":
-        phys.WriteFluxMoments("output/fom")
+    try:
+        if phase == "online" and saveh5:
+            phys.WriteFluxMoments("output/rom_{}_".format(pid))
+        if phase == "offline" and saveh5:
+            phys.WriteFluxMoments("output/fom_{}_".format(pid))
+    except:
+        if phase == "online":
+            phys.WriteFluxMoments("output/rom")
+        if phase == "offline":
+            phys.WriteFluxMoments("output/fom")

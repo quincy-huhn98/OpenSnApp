@@ -22,48 +22,12 @@ if "opensn_console" not in globals():
 if __name__ == "__main__":
 
     try:
-        print("Scattering Parameter = {}".format(scatt))
-        param = scatt
-    except:
-        scatt=0.0
-        print("Scattering Nominal = {}".format(scatt))
-
-    try:
-        print("Cross Section Parameter = {}".format(sigma_t))
-        param = sigma_t
-    except:
-        sigma_t=1.0
-        print("Cross Section Nominal = {}".format(sigma_t))
-
-    try:
-        print("Source Parameter = {}".format(param_q))
-        param = param_q
-    except:
-        param_q=1.0
-        print("Source Nominal = {}".format(param_q))
-
-    try:
-        print("Parameter id = {}".format(p_id))
+        print("Parameter id = {}".format(pid))
     except:
         p_id=0
-        print("Parameter id = {}".format(p_id))
+        print("Parameter id = {}".format(pid))
 
-    try:
-        if phase == 0:
-            print("Offline Phase")
-            phase = "offline"
-        elif phase == 1:
-            print("Merge Phase")
-            phase = "merge"
-        elif phase == 2:
-            print("Systems Phase")
-            phase = "systems"
-        elif phase == 3:
-            print("Online Phase")
-            phase = "online"
-    except:
-        phase="offline"
-        print("Phase default to offline")
+    print("{} phase".format(phase))
     
     # Create Mesh
     widths = [2., 1., 2., 1., 2.]
@@ -88,8 +52,8 @@ if __name__ == "__main__":
         z_min = z_max
 
     # Add cross sections to materials
-    total = [50., 5., 0., sigma_t, sigma_t]
-    c = [0., 0., 0., scatt, scatt]
+    total = [50., 5., 0., 1., 1.]
+    c = [0., 0., 0., p0, p0]
     xs_map = len(total) * [None]
     for imat in range(Nmat):
         xs_ = MultiGroupXS()
@@ -100,7 +64,7 @@ if __name__ == "__main__":
 
     # Create sources in 1st and 4th materials
     src0 = VolumetricSource(block_ids=[0], group_strength=[50.])
-    src1 = VolumetricSource(block_ids=[3], group_strength=[param_q])
+    src1 = VolumetricSource(block_ids=[3], group_strength=[p1])
 
     # Angular Quadrature
     gl_quad = GLProductQuadrature1DSlab(n_polar=128, scattering_order=0)
@@ -131,14 +95,14 @@ if __name__ == "__main__":
 
     if phase == "online":
         rom_options = {
-                "param_id": 0,
+                "param_id": pid,
                 "phase": phase,
                 "param_file": "data/params.txt",
-                "new_point": [scatt, param_q]
+                "new_point": [p0, p1]
             }
     else:
         rom_options = {
-                "param_id": p_id,
+                "param_id": pid,
                 "phase": phase
             }
 
@@ -149,10 +113,15 @@ if __name__ == "__main__":
     ss_solver.Initialize()
     ss_solver.Execute()
 
-    # compute particle balance
-    phys.ComputeBalance()
+    try:
+        if phase == "online" and saveh5:
+            phys.WriteFluxMoments("output/rom_{}_".format(pid))
+        if phase == "offline" and saveh5:
+            phys.WriteFluxMoments("output/fom_{}_".format(pid))
+    except:
+        if phase == "online":
+            phys.WriteFluxMoments("output/rom")
+        if phase == "offline":
+            phys.WriteFluxMoments("output/fom")
+
     
-    if phase == "online":
-        phys.WriteFluxMoments("output/rom")
-    if phase == "offline":
-        phys.WriteFluxMoments("output/fom")

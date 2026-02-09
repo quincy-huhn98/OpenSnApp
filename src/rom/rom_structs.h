@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 The OpenSn Authors <https://open-sn.github.io/opensn/>
+// SPDX-FileCopyrightText: 2025 The OpenSn Authors <https://open-sn.github.io/opensn/>
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -8,10 +8,18 @@
 namespace opensn
 {
 
+enum class Phase
+{
+  OFFLINE,
+  MERGE,
+  SYSTEMS,
+  ONLINE
+};
+
 struct ROMOptions
 {
   int param_id = 0;
-  std::string phase = "offline";
+  Phase phase = Phase::OFFLINE;
   std::string param_file = "";
   std::unique_ptr<CAROM::Vector> new_point;
 

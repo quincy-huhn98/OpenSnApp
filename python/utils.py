@@ -2,15 +2,6 @@ import numpy as np
 import subprocess
 import h5py
 
-def run_opensn(cmd):
-    args = cmd.split(" ")
-    print(args)
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    output, errors = process.communicate()
-    print("Output:", output)
-    print("Errors:", errors)
-
-
 def load_2d_flux(file_pattern, ranks, moment=0):
     """Load (x, y, flux) grouped by energy group from HDF5 files."""
     with h5py.File(file_pattern.format(ranks[0]), "r") as f0:
@@ -117,7 +108,7 @@ def update_xs(in_file, out_file, sigma_t_vec, S):
     for gprime in range(G):
         for g in range(G):
             val = float(S[gprime][g])
-            new_tm.append(f"M_GPRIME_G_VAL 0 {gprime} {g} {val:.12g}\n")
+            new_tm.append(f"M_GFROM_GTO_VAL 0 {gprime} {g} {val:.12g}\n")
 
     lines[tb+1:te] = new_tm
 

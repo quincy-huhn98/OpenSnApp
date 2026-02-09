@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 The OpenSn Authors <https://open-sn.github.io/opensn/>
+// SPDX-FileCopyrightText: 2025 The OpenSn Authors <https://open-sn.github.io/opensn/>
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -47,8 +47,8 @@ public:
   std::shared_ptr<CAROM::Vector> AssembleRHS();
 
   /// Assemble the reduced system and save to file
-  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU_, 
-                   std::shared_ptr<CAROM::Vector>& b_, 
+  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU, 
+                   std::shared_ptr<CAROM::Vector>& b, 
                    const std::string& Ar_filename,
                    const std::string& rhs_filename);
 
@@ -65,16 +65,16 @@ public:
     std::shared_ptr<CAROM::Vector>& rhs_interp);
 
 protected:
-  std::unique_ptr<CAROM::Matrix> spatialbasis;
+  std::unique_ptr<CAROM::Matrix> spatial_basis_;
   opensn::Vector<double> b_;
-  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
-  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
-  std::shared_ptr<LBSProblem> lbs_problem;
+  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr_;
+  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr_;
+  std::shared_ptr<LBSProblem> lbs_problem_;
   ROMOptions options_;
 
 public:
-  std::vector<CAROM::Vector> param_points_;
-  int romRank;
+  std::vector<CAROM::Vector> param_points;
+  int rom_rank;
 };
 
 } // namespace opensn

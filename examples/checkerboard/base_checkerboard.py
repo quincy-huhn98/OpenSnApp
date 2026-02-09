@@ -25,64 +25,21 @@ if "opensn_console" not in globals():
 if __name__ == "__main__":
 
     try:
-        print("Absorber Sigma_a Parameter = {}".format(abs_1))
-        param = abs_1
+        print("5 Parameter Case q = {}".format(p4))
+        int_point = [p0,p1,p2,p3,p4]
     except:
-        abs_1=10.0
-        print("Absorber Sigma_a Nominal = {}".format(abs_1))
+        p4=1.0
+        print("4 Parameter Case q nominal = {}".format(p4))
+        int_point = [p0,p1,p2,p3]
 
     try:
-        print("Absorber Sigma_s Parameter = {}".format(scatt_1))
-        param = scatt_1
+        print("Parameter id = {}".format(pid))
     except:
-        scatt_1=10.0
-        print("Absorber Sigma_s Nominal = {}".format(scatt_1))
+        pid=0
+        print("Parameter id = {}".format(pid))
 
+    print("{} phase".format(phase))
 
-    try:
-        print("Scatterer Sigma_a Parameter = {}".format(abs_2))
-        param = abs_2
-    except:
-        abs_2=0.0
-        print("Scatterer Sigma_a Nominal = {}".format(abs_2))
-
-    try:
-        print("Scatterer Sigma_s Parameter = {}".format(scatt_2))
-        param = scatt_2
-    except:
-        scatt_2=1.0
-        print("Scatterer Sigma_s Nominal = {}".format(scatt_2))
-
-
-    try:
-        print("Source Parameter = {}".format(param_q))
-        param = param_q
-    except:
-        param_q=1.0
-        print("Source Nominal = {}".format(param_q))
-
-    try:
-        print("Parameter id = {}".format(p_id))
-    except:
-        p_id=0
-        print("Parameter id = {}".format(p_id))
-
-    try:
-        if phase == 0:
-            print("Offline Phase")
-            phase = "offline"
-        elif phase == 1:
-            print("Merge Phase")
-            phase = "merge"
-        elif phase == 2:
-            print("Systems Phase")
-            phase = "systems"
-        elif phase == 3:
-            print("Online Phase")
-            phase = "online"
-    except:
-        phase="offline"
-        print("Phase default to offline")
 
     # Check number of processors
     num_procs = 4
@@ -131,19 +88,19 @@ if __name__ == "__main__":
         )
         grid.SetBlockIDFromLogicalVolume(vol_abs, 2, True)
 
-    scatt_t = abs_2 + scatt_2
+    scatt_t = p3 + p1
     num_groups = 1
     scatterer = MultiGroupXS()
-    scatterer.CreateSimpleOneGroup(sigma_t=scatt_t, c=scatt_2/scatt_t)
+    scatterer.CreateSimpleOneGroup(sigma_t=scatt_t, c=p1/scatt_t)
 
-    abs_t = abs_1 + scatt_1
+    abs_t = p2 + p0
 
     absorber = MultiGroupXS()
-    absorber.CreateSimpleOneGroup(sigma_t=abs_t, c=scatt_1/abs_t)
+    absorber.CreateSimpleOneGroup(sigma_t=abs_t, c=p0/abs_t)
 
     strength = [0.0]
     src0 = VolumetricSource(block_ids=[0], group_strength=strength)
-    strength = [param_q]
+    strength = [p4]
     src1 = VolumetricSource(block_ids=[1], group_strength=strength)
 
     # Setup Physics
@@ -152,14 +109,14 @@ if __name__ == "__main__":
 
     if phase == "online":
         rom_options={
-            "param_id":0,
+            "param_id":pid,
             "phase":phase,
-            "param_file":"data/interpolation_params.txt",
-            "new_point":[scatt_1, scatt_2, abs_1, abs_2, param_q]
+            "param_file":"data/params.txt",
+            "new_point":int_point
         }
     else:
         rom_options={
-            "param_id":p_id,
+            "param_id":pid,
             "phase":phase
         }
     
@@ -190,9 +147,13 @@ if __name__ == "__main__":
     ss_solver.Initialize()
     ss_solver.Execute()
 
-    phys.ComputeBalance()
-
-    if phase == "online":
-        phys.WriteFluxMoments("output/rom")
-    if phase == "offline":
-        phys.WriteFluxMoments("output/fom")
+    try:
+        if phase == "online" and saveh5:
+            phys.WriteFluxMoments("output/rom_{}_".format(pid))
+        if phase == "offline" and saveh5:
+            phys.WriteFluxMoments("output/fom_{}_".format(pid))
+    except:
+        if phase == "online":
+            phys.WriteFluxMoments("output/rom")
+        if phase == "offline":
+            phys.WriteFluxMoments("output/fom")

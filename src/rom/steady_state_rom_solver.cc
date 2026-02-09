@@ -46,7 +46,7 @@ SteadyStateROMSolver::Execute()
   auto& options = lbs_problem_->GetOptions();
   auto& rom_options = rom_problem_->GetOptions();
 
-  if (rom_options.phase == "offline")
+  if (rom_options.phase == Phase::OFFLINE)
   {
     auto& ags_solver = *lbs_problem_->GetAGSSolver();
 
@@ -57,7 +57,7 @@ SteadyStateROMSolver::Execute()
     std::chrono::duration<double, std::milli> elapsed = end - start;
     if (opensn::mpi_comm.rank() == 0)
     {
-      std::ofstream outfile("results/offline_time.txt");
+      std::ofstream outfile("results/offline_time_" + std::to_string(rom_options.param_id) + ".txt");
       if (outfile.is_open()) {
         outfile << elapsed.count() <<std::endl;
         outfile.close();
@@ -68,11 +68,11 @@ SteadyStateROMSolver::Execute()
 
     rom_problem_->TakeSample(rom_options.param_id);
   }
-  if (rom_options.phase == "merge")
+  if (rom_options.phase == Phase::MERGE)
   {
     rom_problem_->MergePhase(rom_options.param_id);
   }
-  if (rom_options.phase == "systems")
+  if (rom_options.phase == Phase::SYSTEMS)
   {
     std::shared_ptr<CAROM::Matrix> AU_ = rom_problem_->AssembleAU();
     std::shared_ptr<CAROM::Vector> b_ = rom_problem_->AssembleRHS();
@@ -80,7 +80,7 @@ SteadyStateROMSolver::Execute()
     const std::string& rhs_filename = "data/rom_system_br_" + std::to_string(rom_options.param_id);
     rom_problem_->AssembleROM(AU_, b_, Ar_filename, rhs_filename);
   }
-  if (rom_options.phase == "online")
+  if (rom_options.phase == Phase::ONLINE)
   {
     rom_problem_->ReadParamMatrix(rom_options.param_file);
 
@@ -98,7 +98,7 @@ SteadyStateROMSolver::Execute()
 
     if (opensn::mpi_comm.rank() == 0)
     {
-      std::ofstream outfile("results/online_time.txt");
+      std::ofstream outfile("results/online_time_" + std::to_string(rom_options.param_id) + ".txt");
       if (outfile.is_open()) 
       {
         outfile << elapsed.count() <<std::endl;

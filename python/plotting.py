@@ -6,7 +6,7 @@ from matplotlib.colors import LogNorm
 
 
 def plot_2d_flux(file_pattern, ranks, moment=0, prefix="fom", grid_res=200, pid=0):
-    """Create smooth full-color plots (not scatter) for each energy group."""
+    """Create smooth full-color plots for each energy group."""
     xs, ys, vals, G = load_2d_flux(file_pattern, ranks, moment=moment)
 
     for g in range(G):
@@ -41,10 +41,10 @@ def plot_2d_flux(file_pattern, ranks, moment=0, prefix="fom", grid_res=200, pid=
         plt.savefig(outpath, dpi=200)
         plt.close()
 
-def plot_2d_lineout(ranks, y_target=4.0, moment=0, grid_res=200, pid=0):
+def plot_2d_lineout(output_dir, ranks, y_target=4.0, moment=0, grid_res=200, pid=0):
     """Plot lineout at y_target of ROM and FOM."""
-    xs, ys, vals, G = load_2d_flux("output/rom{}.h5", ranks, moment=moment)
-    xs_, ys_, vals_, G = load_2d_flux("output/fom{}.h5", ranks, moment=moment)
+    xs, ys, vals, G = load_2d_flux(str(output_dir / ("fom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
+    xs_, ys_, vals_, G = load_2d_flux(str(output_dir / ("rom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
 
     for g in range(G):
         # Create regular grid
