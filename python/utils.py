@@ -63,6 +63,7 @@ def load_1d_flux(file_pattern, ranks, moment=0):
 
 
 def sample_parameter_space(bounds, n_samples):
+    """Performs uniform sampling on a set of bounds and includes the vertices of the parameter domain"""
     n_dim = len(bounds)
     n_vertices = 2**n_dim
     n_random = n_samples - n_vertices
@@ -87,6 +88,7 @@ def sample_parameter_space(bounds, n_samples):
 
 
 def update_xs(in_file, out_file, sigma_t_vec, S):
+    """Writes a OpenSn .xs file replacing cross sections with user supplied values"""
     with open(in_file, "r") as f:
         lines = f.readlines()
 

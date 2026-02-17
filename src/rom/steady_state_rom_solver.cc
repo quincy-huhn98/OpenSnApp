@@ -90,7 +90,7 @@ SteadyStateROMSolver::Execute()
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    rom_problem_->InterpolateArAndRHS(*rom_options.new_point, Ar_interp, rhs_interp);
+    rom_problem_->InterpolateArAndRHSr(*rom_options.new_point, Ar_interp, rhs_interp);
     rom_problem_->SolveROM(Ar_interp, rhs_interp);
     
     auto end = std::chrono::high_resolution_clock::now();

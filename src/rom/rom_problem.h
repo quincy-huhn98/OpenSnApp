@@ -59,7 +59,7 @@ public:
   /// Load reduced systems and initialize libROM interpolator objects
   void SetupInterpolator(CAROM::Vector& desired_point);
 
-  void InterpolateArAndRHS(
+  void InterpolateArAndRHSr(
     CAROM::Vector& desired_point,
     std::shared_ptr<CAROM::Matrix>& Ar_interp,
     std::shared_ptr<CAROM::Vector>& rhs_interp);

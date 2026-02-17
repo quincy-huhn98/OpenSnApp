@@ -17,6 +17,12 @@ namespace opensn
 
 OpenSnRegisterObjectInNamespace(rom, ROMProblem);
 
+/** Returns the input-parameter schema for ROMProblem.
+ *
+ * Extends the base Problem schema with:
+ * - `problem` : an existing LBSProblem instance to control.
+ * - `options` : nested parameter block controlling ROM workflow (phase, IDs, files, etc.).
+ */
 InputParameters
 ROMProblem::GetInputParameters()
 {
@@ -36,6 +42,11 @@ ROMProblem::GetInputParameters()
   return params;
 }
 
+/** Factory helper that constructs a ROMProblem via the OpenSn object factory.
+ *
+ * \param params Parameter block (typically produced by the input system).
+ * \return Shared pointer to a constructed ROMProblem.
+ */
 std::shared_ptr<ROMProblem>
 ROMProblem::Create(const ParameterBlock& params)
 {
@@ -43,6 +54,12 @@ ROMProblem::Create(const ParameterBlock& params)
   return factory.Create<ROMProblem>("rom::ROMProblem", params);
 }
 
+/** Constructs a ROMProblem and attaches it to an existing LBSProblem.
+ *
+ * The `problem` parameter must refer to a valid LBSProblem instance.
+ * If an `options` block is provided, it is validated against GetOptionsBlock()
+ * and stored into the internal ROMOptions structure.
+ */
 ROMProblem::ROMProblem(const InputParameters& params)
   : Problem(params),
   lbs_problem_(params.GetSharedPtrParam<Problem, LBSProblem>("problem"))
@@ -56,6 +73,14 @@ ROMProblem::ROMProblem(const InputParameters& params)
   }
 }
 
+/** Collects and writes one snapshot per energy group for the current state.
+ *
+ * This routine extracts the current `phi_new` vector from the attached LBSProblem,
+ * forms a per-group snapshot of size (local_nodes * moments), and writes it using
+ * libROM's snapshot format.
+ *
+ * \param id Snapshot identifier appended to the snapshot filename.
+ */
 void
 ROMProblem::TakeSample(int id)
 {
@@ -99,6 +124,14 @@ ROMProblem::TakeSample(int id)
   }
 }
 
+/** Builds (merges) group-wise spatial bases from previously written snapshots.
+ *
+ * For each group, loads `nsnaps` snapshot files, performs an SVD-based basis
+ * construction with a prescribed tolerance and maximum rank, and writes basis data.
+ * Singular values are additionally dumped to text on rank 0 for diagnostics.
+ *
+ * \param nsnaps Number of snapshot IDs to load per group.
+ */
 void
 ROMProblem::MergePhase(int nsnaps)
 {
@@ -145,6 +178,13 @@ ROMProblem::MergePhase(int nsnaps)
   }
 }
 
+/** Reads a whitespace-delimited parameter matrix from a text file.
+ *
+ * Each non-empty line becomes one parameter point. Points are stored as libROM
+ * vectors in \c param_points.
+ *
+ * \param filename Path to the parameter matrix text file.
+ */
 void
 ROMProblem::ReadParamMatrix(const std::string& filename)
 {
@@ -166,6 +206,15 @@ ROMProblem::ReadParamMatrix(const std::string& filename)
   }
 }
 
+/** Assembles the global (local-DOF) matrix AU used to form reduced systems.
+ *
+ * For each group \c g and basis vector \c r, this method:
+ * 1. Injects the basis column into the full-order dof layout.
+ * 2. Uses the LBS WGS context to perform a sweep with that vector as a source.
+ * 3. Forms the corresponding column of AU as (injected_basis - resulting_phi_new).
+ *
+ * \return Shared pointer to AU of size (local_dofs) x (rom_rank * num_groups).
+ */
 std::shared_ptr<CAROM::Matrix>
 ROMProblem::AssembleAU()
 {
@@ -227,6 +276,14 @@ ROMProblem::AssembleAU()
   return AU;
 }
 
+/** Assembles the full-order right-hand-side vector used for ROM system build.
+ *
+ * The RHS corresponds to the sweep result for the current "old" iterate/source
+ * configuration and is used with AU to form the reduced system:
+ * rhs = AU^T b.
+ *
+ * \return Shared pointer to b of length local_dofs.
+ */
 std::shared_ptr<CAROM::Vector> 
 ROMProblem::AssembleRHS()
 {
@@ -257,6 +314,18 @@ ROMProblem::AssembleRHS()
   return b;
 }
 
+/** Forms and writes the reduced system (Ar, rhs) for a given AU and b.
+ *
+ * Computes:
+ * - rhs = AU^T * b
+ * - Ar  = AU^T * AU
+ * and writes them to libROM files.
+ *
+ * \param AU Full-order operator matrix assembled by AssembleAU().
+ * \param b  Full-order RHS vector assembled by AssembleRHS().
+ * \param Ar_filename Output filename for Ar.
+ * \param rhs_filename Output filename for rhs.
+ */
 void 
 ROMProblem::AssembleROM(
   std::shared_ptr<CAROM::Matrix>& AU,
@@ -275,6 +344,16 @@ ROMProblem::AssembleROM(
   rhs->write(rhs_filename);
 }
 
+
+/** Solves the reduced system and reconstructs the full-order flux moments.
+ *
+ * Solves Ar * c = rhs by explicit inversion (Ar^{-1} rhs), then reconstructs
+ * the full-order local dof vector using the stored group-wise bases:
+ *   phi_new += sum_{g,r} c_{g,r} * U_g(:,r) injected into full layout.
+ *
+ * \param Ar Reduced matrix (rom_dim x rom_dim).
+ * \param rhs Reduced RHS vector (rom_dim).
+ */
 void
 ROMProblem::SolveROM(
   std::shared_ptr<CAROM::Matrix>& Ar,
@@ -324,6 +403,15 @@ ROMProblem::SolveROM(
   }
 }
 
+/** Initializes libROM interpolators for Ar and rhs over parameter space.
+ *
+ * Loads all stored reduced systems from disk (one per parameter point), creates
+ * identity rotations, chooses a reference index (closest point), and constructs:
+ * - MatrixInterpolator on the SPD manifold for Ar
+ * - VectorInterpolator for rhs
+ *
+ * \param desired_point Parameter at which interpolation will be queried.
+ */
 void
 ROMProblem::SetupInterpolator(CAROM::Vector& desired_point)
 {
@@ -371,8 +459,16 @@ ROMProblem::SetupInterpolator(CAROM::Vector& desired_point)
     ref_index, "G", "LS", 0.999, false);
 }
 
+/** Interpolates Ar and rhs at a desired parameter point.
+ *
+ * Requires SetupInterpolator() to have been called.
+ *
+ * \param desired_point Parameter at which to interpolate.
+ * \param Ar_interp Output interpolated reduced matrix.
+ * \param rhs_interp Output interpolated reduced RHS vector.
+ */
 void 
-ROMProblem::InterpolateArAndRHS(
+ROMProblem::InterpolateArAndRHSr(
     CAROM::Vector& desired_point,
     std::shared_ptr<CAROM::Matrix>& Ar_interp,
     std::shared_ptr<CAROM::Vector>& rhs_interp)
@@ -381,6 +477,15 @@ ROMProblem::InterpolateArAndRHS(
   rhs_interp = rhs_interp_obj_ptr_->interpolate(desired_point);
 }
 
+
+/** Returns the schema for the nested `options` parameter block.
+ *
+ * The block controls ROM workflow phases and parameterization:
+ * - phase: offline | merge | systems | online
+ * - param_id: integer identifier for snapshot/system naming
+ * - param_file: parameter matrix file path
+ * - new_point: array specifying an online interpolation point
+ */
 InputParameters
 ROMProblem::GetOptionsBlock()
 {
@@ -396,6 +501,13 @@ ROMProblem::GetOptionsBlock()
   return params;
 }
 
+/** Parses and stores ROM options from an input block.
+ *
+ * Validates the provided block against GetOptionsBlock() and updates the internal
+ * ROMOptions structure.
+ *
+ * \param input Parameter block containing ROM option values.
+ */
 void
 ROMProblem::SetOptions(const InputParameters& input)
 {

@@ -3,6 +3,7 @@ import numpy as np
 
 
 def ensure_problem_dirs(problem_root):
+    """Will create the required directories for running a ROM problem"""
     paths = {
         "root": problem_root,
         "data": problem_root / "data",
@@ -16,6 +17,7 @@ def ensure_problem_dirs(problem_root):
 
 
 def make_opensn_args(phase, pid, pvec, save_h5=False):
+    """Creates a set of -p arguments that will modify the OpenSn input file"""
     args = ["-p", "phase={}".format(repr(phase)),"-p", "pid={}".format(pid)]
 
     if pvec is not None:
@@ -29,6 +31,7 @@ def make_opensn_args(phase, pid, pvec, save_h5=False):
 
 
 def _run_one(problem, jm, workdir, phase, pid, pvec=None, save_h5=False):
+    """Calls OpenSn using arguments defined by phase, pid, and pvec"""
     opensn_args = make_opensn_args(phase=phase, pid=pid, pvec=pvec, save_h5=save_h5)
 
     res = jm.run(
@@ -40,16 +43,19 @@ def _run_one(problem, jm, workdir, phase, pid, pvec=None, save_h5=False):
     )
 
 def _run_many(problem, jm, workdir, phase, dataset, save_h5=False):
+    """Runs each multigroup problem defined by dataset using the problem to update cross sections"""
     for pid, pvec in enumerate(dataset):
         problem.update_xs(pvec)
         _run_one(problem, jm, workdir, phase=phase, pid=pid, pvec=pvec, save_h5=save_h5)
 
 def _run_many_1g(problem, jm, workdir, phase, dataset, save_h5=False):
+    """Runs each single group problem in dataset using the commandline arguments to update cross sections"""
     for pid, pvec in enumerate(dataset):
         _run_one(problem, jm, workdir, phase=phase, pid=pid, pvec=pvec, save_h5=save_h5)
 
 
 def run_pipeline(problem, repo_root, jm):
+    """Runs each ROM phase in sequence using _run_many so that cross sections files are updated"""
     paths = ensure_problem_dirs(Path(repo_root))
 
     problem.sample_training()
@@ -72,6 +78,7 @@ def run_pipeline(problem, repo_root, jm):
     _run_many(problem, jm, workdir=paths["root"], phase="online",  dataset=problem.testing_set, save_h5=True)
 
 def run_pipeline_1g(problem, repo_root, jm):
+    """Runs each ROM phase in sequence using _run_many_1g so that cross sections are passed to the input file"""
     paths = ensure_problem_dirs(Path(repo_root))
 
     problem.sample_training()
