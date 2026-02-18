@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "py_wrappers.h"
+<<<<<<< HEAD
 #include "rom/rom_problem.h"
+=======
+#include "rom/ROM_problem.h"
+>>>>>>> dd951c6 (ROM App)
 #include "rom/steady_state_rom_solver.h"
 #include "modules/solver.h"
 #include <memory>
