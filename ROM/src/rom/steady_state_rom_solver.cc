@@ -37,7 +37,6 @@ SteadyStateROMSolver::SteadyStateROMSolver(const InputParameters& params)
 void
 SteadyStateROMSolver::Initialize()
 {
-  lbs_problem_->Initialize();
 }
 
 void

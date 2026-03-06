@@ -31,6 +31,12 @@ find_package(caliper REQUIRED)
 
 find_package(Python REQUIRED COMPONENTS Interpreter Development)
 
+find_package(Boost CONFIG)
+if (NOT Boost_FOUND)
+  message(STATUS "Boost CONFIG not found, falling back to module mode")
+  find_package(Boost REQUIRED)
+endif()
+
 find_library(LIBROM_LIBRARY
   NAMES ROM
   HINTS
@@ -76,6 +82,7 @@ target_include_directories(romapp
     ${PYBIND11_INCLUDE_DIRS}
     ${OpenSn_INSTALL_PREFIX}/include/opensn
     ${LIBROM_INCLUDE_DIR}
+    ${Boost_INCLUDE_DIRS}
 )
 target_link_libraries(romapp 
     PRIVATE 
@@ -99,6 +106,7 @@ target_include_directories(rom_app_exec PRIVATE
     ${PYBIND11_INCLUDE_DIRS}
     ${OpenSn_INSTALL_PREFIX}/include/opensn
     ${LIBROM_INCLUDE_DIR}
+    ${Boost_INCLUDE_DIRS}
 )
 target_link_libraries(rom_app_exec 
     PRIVATE 
