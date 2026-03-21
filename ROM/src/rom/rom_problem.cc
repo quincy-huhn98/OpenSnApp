@@ -11,6 +11,7 @@
 #include "linalg/BasisReader.h"
 #include <fstream>
 #include <memory>
+#include <cassert>
 
 namespace opensn
 {
@@ -237,8 +238,8 @@ ROMProblem::AssembleAU()
   auto AU = std::make_shared<CAROM::Matrix>(num_local_dofs, rom_rank * num_groups, true);
 
   // Assuming one groupset for ROM problems
-  auto wgs_solvers = lbs_problem_->GetWGSSolvers();
-  auto raw_context   = wgs_solvers.front()->GetContext();
+  assert(lbs_problem_->GetNumWGSSolvers() == 1); 
+  auto raw_context = lbs_problem_->GetWGSSolver(0)->GetContext();
   auto gs_context    = std::dynamic_pointer_cast<WGSContext>(raw_context);
   const auto scope   = gs_context->lhs_src_scope;
 
@@ -294,8 +295,8 @@ ROMProblem::AssembleRHS()
   auto b = std::make_shared<CAROM::Vector>(num_local_dofs, true);
 
   // Assuming one groupset for ROM problems
-  auto wgs_solvers = lbs_problem_->GetWGSSolvers();
-  auto raw_context = wgs_solvers.front()->GetContext();
+  assert(lbs_problem_->GetNumWGSSolvers() == 1);
+  auto raw_context = lbs_problem_->GetWGSSolver(0)->GetContext();
   auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
   auto scope = gs_context_ptr->rhs_src_scope;
 
