@@ -16,30 +16,50 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-      - name: checkout testapp
+      - name: checkout this repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: checkout opensn
         uses: actions/checkout@v4
         with:
           repository: Open-Sn/opensn
           path: opensn
+      - name: clean build directories
+        shell: bash
+        run: |
+          rm -rf opensn/build opensn/install ROM/build diffusion/build
       - name: install opensn
         shell: bash
         run: |
           module load opensn/gcc/14 python3/3.12.3
           cd opensn && mkdir build && mkdir install && cd build 
           cmake -DCMAKE_INSTALL_PREFIX=../install .. && make -j && make install
-      - name: compile app
+      - name: compile rom
         shell: bash
         run: |
           module load opensn/gcc/14 python3/3.12.3 libROM/1.0.0
           export OpenSn_DIR=$PWD/opensn/install
           cd ROM 
           mkdir build && cd build && cmake .. && make -j
-      - name: test examples
+      - name: test rom
         shell: bash
         run: |
           module load opensn/gcc/14 python3/3.12.3 libROM/1.0.0
           cd ROM
           export PYTHONPATH=$PWD/python
           cd examples/reed && python3 run_rom_reed.py --exe ../../build/rom_app_exec
+      - name: compile diffusion
+        shell: bash
+        run: |
+          module load opensn/gcc/14 python3/3.12.3
+          export OpenSn_DIR=$PWD/opensn/install
+          cd diffusion
+          mkdir build && cd build && cmake .. && make -j
+      - name: test diffusion
+        shell: bash
+        run: |
+          module load opensn/gcc/14 python3/3.12.3
+          cd diffusion
+          export PYTHONPATH=$PWD/python
+          test/run_tests -d test/diffusion
