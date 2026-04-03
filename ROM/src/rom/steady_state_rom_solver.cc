@@ -63,8 +63,6 @@ SteadyStateROMSolver::Execute()
       }
     }
 
-    lbs_problem_->UpdateFieldFunctions();
-
     rom_problem_->TakeSample(rom_options.param_id);
   }
   if (rom_options.phase == Phase::MERGE)
