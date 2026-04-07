@@ -120,7 +120,6 @@ DiffusionSolverBase::InitFieldFunctions()
       std::make_shared<FieldFunctionGridBased>(name, sdm_ptr_, Unknown(UnknownType::SCALAR));
 
     field_functions_.push_back(initial_field_function);
-    field_function_stack.push_back(initial_field_function);
   } // if not ff set
 }
 
