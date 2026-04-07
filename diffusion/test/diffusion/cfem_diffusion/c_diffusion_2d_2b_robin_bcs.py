@@ -90,7 +90,6 @@ if __name__ == "__main__":
     ffvol.SetOperationType("avg")
     ffvol.SetLogicalVolume(vol0)
     ffvol.AddFieldFunction(fflist[0])
-    ffvol.Initialize()
     ffvol.Execute()
     avgval = ffvol.GetValue()
     if rank == 0:

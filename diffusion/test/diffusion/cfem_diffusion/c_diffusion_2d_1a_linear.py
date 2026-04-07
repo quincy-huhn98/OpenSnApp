@@ -86,7 +86,6 @@ if __name__ == "__main__":
     cline.SetFinalPoint(Vector3(L / 2, 0.0, 0.0))
     cline.SetNumberOfPoints(50)
     cline.AddFieldFunction(fflist[0])
-    cline.Initialize()
     cline.Execute()
 
     if globals().get('master_export', False) is True:
@@ -98,7 +97,6 @@ if __name__ == "__main__":
     ffvol.SetOperationType("max")
     ffvol.SetLogicalVolume(vol0)
     ffvol.AddFieldFunction(fflist[0])
-    ffvol.Initialize()
     ffvol.Execute()
     maxval = ffvol.GetValue()
     if rank == 0:
