@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2025 The OpenSn Authors <https://open-sn.github.io/opensn/>
 // SPDX-License-Identifier: MIT
 
-#include "modules/linear_boltzmann_solvers/lbs_problem/lbs_problem.h"
-#include "modules/linear_boltzmann_solvers/lbs_problem/iterative_methods/wgs_context.h"
+#include "modules/linear_boltzmann_solvers/discrete_ordinates_problem/discrete_ordinates_problem.h"
+#include "modules/linear_boltzmann_solvers/discrete_ordinates_problem/iterative_methods/wgs_context.h"
 #include "framework/object_factory.h"
 #include "framework/logging/log.h"
 #include "framework/runtime.h"
@@ -34,7 +34,7 @@ ROMProblem::GetInputParameters()
   params.ChangeExistingParamToOptional("name", "ROMProblem");
 
   params.AddRequiredParameter<std::shared_ptr<Problem>>(
-      "problem", "An existing LBS problem to attach the ROM controller to.");
+      "problem", "An existing discrete ordinates problem to attach the ROM controller to.");
 
   // Optional nested ROM options block (phase, ids, files, new_point, etc.)
   params.AddOptionalParameterBlock(
@@ -63,7 +63,7 @@ ROMProblem::Create(const ParameterBlock& params)
  */
 ROMProblem::ROMProblem(const InputParameters& params)
   : Problem(params),
-  lbs_problem_(params.GetSharedPtrParam<Problem, LBSProblem>("problem"))
+  lbs_problem_(params.GetSharedPtrParam<Problem, DiscreteOrdinatesProblem>("problem"))
 {
   // Initialize options
   if (params.IsParameterValid("options"))

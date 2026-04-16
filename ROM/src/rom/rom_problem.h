@@ -4,7 +4,7 @@
 #pragma once
 
 #include "framework/parameters/input_parameters.h"
-#include "modules/linear_boltzmann_solvers/lbs_problem/lbs_problem.h"
+#include "modules/linear_boltzmann_solvers/discrete_ordinates_problem/discrete_ordinates_problem.h"
 #include "linalg/Matrix.h"
 #include "linalg/Vector.h"
 #include "algo/manifold_interp/MatrixInterpolator.h"
@@ -69,7 +69,7 @@ protected:
   opensn::Vector<double> b_;
   std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr_;
   std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr_;
-  std::shared_ptr<LBSProblem> lbs_problem_;
+  std::shared_ptr<DiscreteOrdinatesProblem> lbs_problem_;
   ROMOptions options_;
 
 public:

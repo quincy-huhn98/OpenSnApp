@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2025 The OpenSn Authors <https://open-sn.github.io/opensn/>
 // SPDX-License-Identifier: MIT
 
-#include "modules/linear_boltzmann_solvers/solvers/steady_state_solver.h"
-#include "modules/linear_boltzmann_solvers/lbs_problem/lbs_problem.h"
-#include "modules/linear_boltzmann_solvers/lbs_problem/iterative_methods/ags_linear_solver.h"
+#include "modules/linear_boltzmann_solvers/discrete_ordinates_problem/solvers/steady_state_solver.h"
+#include "modules/linear_boltzmann_solvers/discrete_ordinates_problem/discrete_ordinates_problem.h"
+#include "modules/linear_boltzmann_solvers/discrete_ordinates_problem/iterative_methods/ags_linear_solver.h"
 #include "framework/runtime.h"
 #include "steady_state_rom_solver.h"
 #include <memory>
@@ -16,12 +16,11 @@ namespace opensn
 InputParameters
 SteadyStateROMSolver::GetInputParameters()
 {
-  InputParameters params = Solver::GetInputParameters();
+  InputParameters params = SteadyStateSourceSolver::GetInputParameters();
 
   params.SetGeneralDescription("Implementation of a steady state ROM solver. This solver calls the "
                                "across-groupset (AGS) solver offline and interfaces with libROM.");
   params.ChangeExistingParamToOptional("name", "SteadyStateROMSolver");
-  params.AddRequiredParameter<std::shared_ptr<Problem>>("problem", "An existing lbs problem");
   params.AddRequiredParameter<std::shared_ptr<Problem>>("rom_problem", "A ROM problem");
 
   return params;
@@ -29,7 +28,7 @@ SteadyStateROMSolver::GetInputParameters()
 
 SteadyStateROMSolver::SteadyStateROMSolver(const InputParameters& params)
   : SteadyStateSourceSolver(params), 
-  lbs_problem_(params.GetSharedPtrParam<Problem, LBSProblem>("problem")), 
+  lbs_problem_(params.GetSharedPtrParam<Problem, DiscreteOrdinatesProblem>("problem")), 
   rom_problem_(params.GetSharedPtrParam<Problem, ROMProblem>("rom_problem"))
 {
 }
