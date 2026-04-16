@@ -8,24 +8,24 @@
 int
 main(int argc, char** argv)
 {
+  mpi::Environment env(argc, argv);
+
+  PetscCall(PetscInitializeNoArguments()); // NOLINT(bugprone-casting-through-void)
+
+  int retval = EXIT_SUCCESS;
   try
   {
-    int error_code = EXIT_FAILURE;
-    bool petsc_initialized = false;
-    {
-      mpi::Environment env(argc, argv);
-      py::scoped_interpreter guard{};
-      diffpy::DiffApp app(MPI_COMM_WORLD);
-      error_code = app.Run(argc, argv);
-      petsc_initialized = app.IsPetscInitialized();
-    }
-    if (petsc_initialized)
-      PetscFinalize();
-    return error_code;
+    py::scoped_interpreter guard{};
+    diffpy::DiffApp app(MPI_COMM_WORLD); // NOLINT(bugprone-casting-through-void)
+    retval = app.Run(argc, argv);
   }
-  catch (const std::exception& e)
+  catch (...)
   {
-    std::cerr << "Fatal error: " << e.what() << std::endl;
-    return EXIT_FAILURE;
+    std::fprintf(stderr, "Unknown fatal error\n");
+    retval = EXIT_FAILURE;
   }
+
+  PetscFinalize();
+
+  return retval;
 }
