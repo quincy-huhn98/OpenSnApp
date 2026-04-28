@@ -72,9 +72,13 @@ class P58Problem:
         errors = []
         k_errors = []
         speedups = []
+        mi_errors = []
+        mi_k_errors = []
+        mi_speedups = []
         for i in range(self.ntest):
             results_dir = self.workdir / "results"
             rom_time = np.loadtxt(str(results_dir / "online_time_{}.txt".format(i)))
+            mi_time = np.loadtxt(str(results_dir / "mipod_time_{}.txt".format(i)))
             fom_time = np.loadtxt(str(results_dir / "offline_time_{}.txt".format(i)))
 
             output_dir = self.workdir / "output"
@@ -88,9 +92,23 @@ class P58Problem:
                 - np.loadtxt("output/rom_k_{}.txt".format(i))
             )
 
+            mi_error = plotting.plot_1d_eigenvector(
+                str(output_dir / ("fom_{}_".format(i) + "{}.h5")),
+                str(output_dir / ("rom_{}_".format(i) + "{}.h5")),
+                ranks=range(self.nprocs),
+                pid=i)
+            mi_k_error = np.abs(
+                np.loadtxt("output/fom_k_{}.txt".format(i))
+                - np.loadtxt("output/rom_k_{}.txt".format(i))
+            )
+
             k_errors.append(k_error)
             errors.append(error)
             speedups.append(fom_time / rom_time)
+
+            mi_k_errors.append(mi_k_error)
+            mi_errors.append(mi_error)
+            mi_speedups.append(fom_time / mi_time)
 
         print("Avg Eigenvector Error ", np.mean(errors))
         np.savetxt("results/errors.txt", errors)
@@ -98,3 +116,11 @@ class P58Problem:
         np.savetxt("results/k_errors.txt", k_errors)
         print("Avg Speedup ", np.mean(speedups))
         np.savetxt("results/speedups.txt", speedups)
+
+        print("Avg MI Eigenvector Error ", np.mean(mi_errors))
+        np.savetxt("results/mi_errors.txt", mi_errors)
+        print("Avg MI k Error ", np.mean(mi_k_errors) * 1e5, "pcm")
+        np.savetxt("results/mi_k_errors.txt", mi_k_errors)
+        print("Avg MI Speedup ", np.mean(mi_speedups))
+        np.savetxt("results/mi_speedups.txt", mi_speedups)
+

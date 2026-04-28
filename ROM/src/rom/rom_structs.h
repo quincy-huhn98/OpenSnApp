@@ -13,6 +13,7 @@ enum class Phase
   OFFLINE,
   MERGE,
   SYSTEMS,
+  MIPOD,
   ONLINE
 };
 

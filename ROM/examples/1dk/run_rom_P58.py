@@ -25,6 +25,12 @@ def main():
         default="auto",
         help="Execution system: auto, slurm, local, etc.",
     )
+    ap.add_argument(
+        "--mi",
+        type=bool,
+        default=False,
+        help="Whether or not to run Minimally Invasive POD in addition to OMMI",
+    )
     args = ap.parse_args()
 
     repo_root = Path.cwd()

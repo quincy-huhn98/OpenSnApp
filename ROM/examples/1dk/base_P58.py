@@ -96,11 +96,16 @@ if __name__ == "__main__":
         if phase == "online" and saveh5:
             phys.WriteFluxMoments("output/rom_{}_".format(pid))
             np.savetxt("output/rom_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])
+        if phase == "mipod" and saveh5:
+            phys.WriteFluxMoments("output/mipod_{}_".format(pid))
+            np.savetxt("output/mipod_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])
         if phase == "offline" and saveh5:
             phys.WriteFluxMoments("output/fom_{}_".format(pid))
             np.savetxt("output/fom_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])
     except:
         if phase == "online":
             phys.WriteFluxMoments("output/rom")
+        if phase == "mipod":
+            phys.WriteFluxMoments("output/mipod")
         if phase == "offline":
             phys.WriteFluxMoments("output/fom")

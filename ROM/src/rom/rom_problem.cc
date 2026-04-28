@@ -450,6 +450,116 @@ ROMProblem::AssembleROM(
   Br->write(Br_filename);
 }
 
+void
+ROMProblem::MIPOD(
+  std::shared_ptr<CAROM::Matrix>& AU,
+  std::shared_ptr<CAROM::Vector>& b)
+{
+  // rhs = AU^T * b
+  auto rhs = AU->transposeMult(*b);
+
+  // Ar = AU^T * AU
+  auto Ar = AU->transposeMult(*AU);
+
+  auto Ar_inv = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
+
+  Ar->inverse(*Ar_inv);
+
+  auto c_vec = Ar_inv->mult(*rhs);
+
+  auto num_moments = lbs_problem_->GetNumMoments();
+  auto num_groups = lbs_problem_->GetNumGroups();
+  auto num_local_nodes = lbs_problem_->GetLocalNodeCount();
+  auto num_local_dofs = num_local_nodes * num_moments * num_groups;
+
+  auto& phi_new_local = lbs_problem_->GetPhiNewLocal();
+  phi_new_local.assign(phi_new_local.size(), 0.0);
+
+  for (int g = 0; g < num_groups; ++g)
+  {
+    for (int r = 0; r < rom_rank; ++r)
+    {
+      const int cr_idx = g * rom_rank + r;
+      const double cr  = (*c_vec)(cr_idx);
+
+      auto col_g = Ugs_[g]->getColumn(r);
+      size_t row_g = 0;
+      for (size_t n = 0; n < num_local_nodes; ++n)
+        for (size_t m = 0; m < static_cast<size_t>(num_moments); ++m, ++row_g)
+        {
+          const size_t row_phi = n * (num_moments * num_groups) + m * num_groups + static_cast<size_t>(g);
+          phi_new_local[row_phi] += cr * col_g->item(row_g);
+        }
+    }
+  }
+}
+
+double
+ROMProblem::MIPOD(
+  std::shared_ptr<CAROM::Matrix>& AU,
+  std::shared_ptr<CAROM::Matrix>& BU)
+{
+  // Br = AU^T * BU
+  auto Br = AU->transposeMult(*BU);
+
+  // Ar = AU^T * AU
+  auto Ar = AU->transposeMult(*AU);
+
+  auto Ar_inv = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
+  auto Ar_inv_Br = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
+
+  Ar->inverse(*Ar_inv);
+
+  Ar_inv_Br = Ar_inv->mult(*Br);
+
+  auto eigen_pair = CAROM::NonSymmetricRightEigenSolve(*Ar_inv_Br);
+
+  double k_eff = 0.0;
+  int best_col = -1;
+
+  for (int i = 0; i < (int)eigen_pair.eigs.size(); ++i)
+  {
+    const auto& lam = eigen_pair.eigs[i];
+    if (std::abs(lam.imag()) > 1.0e-10) continue;
+    if (lam.real() <= 0.0) continue;
+    if (lam.real() > k_eff)
+    {
+      k_eff = lam.real();
+      best_col = i;
+    }
+  }
+
+  auto num_moments = lbs_problem_->GetNumMoments();
+  auto num_groups = lbs_problem_->GetNumGroups();
+  auto num_local_nodes = lbs_problem_->GetLocalNodeCount();
+  auto num_local_dofs = num_local_nodes * num_moments * num_groups;
+
+  auto& phi_new_local = lbs_problem_->GetPhiNewLocal();
+  phi_new_local.assign(phi_new_local.size(), 0.0);
+
+  for (int g = 0; g < num_groups; ++g)
+  {
+    for (int r = 0; r < rom_rank; ++r)
+    {
+      const int cr_idx = g * rom_rank + r;
+      const double cr  = eigen_pair.ev_real->item(cr_idx, best_col);
+
+      auto col_g = Ugs_[g]->getColumn(r);
+      size_t row_g = 0;
+      for (size_t n = 0; n < (size_t)num_local_nodes; ++n)
+        for (size_t m = 0; m < (size_t)num_moments; ++m, ++row_g)
+        {
+          const size_t row_phi =
+            n * ((size_t)num_moments * (size_t)num_groups) + m * (size_t)num_groups + (size_t)g;
+          phi_new_local[row_phi] += cr * col_g->item(row_g);
+        }
+    }
+  }
+  return k_eff;
+}
+
+
+
 /** Solves the reduced system and reconstructs the full-order flux moments.
  *
  * Solves Ar * c = rhs by explicit inversion (Ar^{-1} rhs), then reconstructs
@@ -763,7 +873,7 @@ ROMProblem::GetOptionsBlock()
   params.AddOptionalParameter("phase", "offline", "The phase (offline, online, systems, or merge) for ROM purposes.");
   params.AddOptionalParameter("param_file", "", "A file containing an array of parameters for ROM.");
   params.AddOptionalParameterArray<double>("new_point", {0.0}, "New parameter point for ROM.");
-  params.ConstrainParameterRange("phase", AllowableRangeList::New({"offline", "merge", "systems", "online"}));
+  params.ConstrainParameterRange("phase", AllowableRangeList::New({"offline", "merge", "systems", "mipod", "online"}));
 
   return params;
 }
@@ -795,6 +905,7 @@ ROMProblem::SetOptions(const InputParameters& input)
         {"offline", Phase::OFFLINE},
         {"merge",   Phase::MERGE},
         {"systems", Phase::SYSTEMS},
+        {"mipod",   Phase::MIPOD},
         {"online",  Phase::ONLINE}
       };
       const std::string phase_str = spec.GetValue<std::string>();

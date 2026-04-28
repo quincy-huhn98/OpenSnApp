@@ -49,6 +49,7 @@ PowerIterationKEigenROMSolver::Initialize()
  * - OFFLINE : runs the full-order power iteration and writes snapshots,
  * - MERGE   : builds the reduced bases from stored snapshots,
  * - SYSTEMS : assembles and writes reduced operators,
+ * - MIPOD   : sweeps to assemble and then solve the reduced system,
  * - ONLINE  : interpolates and solves the reduced k-eigenvalue system.
  */
 void
@@ -96,6 +97,37 @@ PowerIterationKEigenROMSolver::Execute()
 
     rom_problem_->AssembleROM(AU, BU, Ar_filename, Br_filename);
   }
+  if (rom_options.phase == Phase::MIPOD)
+  {
+    rom_problem_->LoadUgs();
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    std::shared_ptr<CAROM::Matrix> AU_ = rom_problem_->AssembleAU();
+    std::shared_ptr<CAROM::Matrix> BU_ = rom_problem_->AssembleBU();
+
+    k_eff_ = rom_problem_->MIPOD(AU_, BU_);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> elapsed = end - start;
+    if (opensn::mpi_comm.rank() == 0)
+    {
+      std::ofstream outfile("results/mipod_time_" + std::to_string(rom_options.param_id) + ".txt");
+      if (outfile.is_open())
+      {
+        outfile << elapsed.count() << std::endl;
+        outfile.close();
+      }
+    }
+
+    log.Log() << "\n";
+    log.Log() << "        Final k-eigenvalue    :        " << std::setprecision(7) << k_eff_;
+    log.Log() << "\n\n";
+
+    log.Log() << "LinearBoltzmann::KEigenvalueROMSolver MIPOD execution completed\n\n";
+
+  }
+
   if (rom_options.phase == Phase::ONLINE)
   {
     rom_problem_->ReadParamMatrix(rom_options.param_file);

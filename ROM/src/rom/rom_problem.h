@@ -63,6 +63,14 @@ public:
                    const std::string& Ar_filename,
                    const std::string& Br_filename);
 
+  /// Assemble and Solve given LHS and RHS of a ROM system
+  void MIPOD(std::shared_ptr<CAROM::Matrix>& Ar,
+                std::shared_ptr<CAROM::Vector>& rhs);
+
+  /// Assemble and solveSolve given LHS and RHS of a k-eigenvalue ROM system
+  double MIPOD(std::shared_ptr<CAROM::Matrix>& Ar,
+                  std::shared_ptr<CAROM::Matrix>& Br);
+
   /// Solve given LHS and RHS of a ROM system
   void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
                 std::shared_ptr<CAROM::Vector>& rhs);

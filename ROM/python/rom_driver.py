@@ -66,7 +66,7 @@ def run_pipeline(problem, repo_root, jm):
     _run_many(problem, jm, workdir=paths["root"], phase="offline", dataset=problem.training_set)
 
     # MERGE
-    _run_one(problem, jm, workdir=paths["root"], phase="merge", pid=problem.ntrain - 1, pvec=np.ones_like(problem.training_set[0]))
+    _run_one(problem, jm, workdir=paths["root"], phase="merge", pid=problem.ntrain, pvec=np.ones_like(problem.training_set[0]))
 
     # SYSTEMS
     _run_many(problem, jm, workdir=paths["root"], phase="systems", dataset=problem.training_set)
@@ -75,6 +75,9 @@ def run_pipeline(problem, repo_root, jm):
 
     # OFFLINE testing (save HDF5)
     _run_many(problem, jm, workdir=paths["root"], phase="offline", dataset=problem.testing_set, save_h5=True)
+
+    # Minimally Invasive testing (optional)
+    _run_many(problem, jm, workdir=paths["root"], phase="mipod", dataset=problem.testing_set, save_h5=True)
 
     # ONLINE testing (save HDF5)
     _run_many(problem, jm, workdir=paths["root"], phase="online",  dataset=problem.testing_set, save_h5=True)
