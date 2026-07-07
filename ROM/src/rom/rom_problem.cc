@@ -142,7 +142,7 @@ ROMProblem::MergePhase(int nsnaps)
   auto full_dim = num_local_nodes * num_moments * num_groups;
 
   CAROM::Options options(group_dim, max_num_snapshots, update_right_SV);
-  double tol = 1e-8;
+  double tol = 1e-16;
   rom_rank = 20;
   options.setSingularValueTol(tol);
   options.setMaxBasisDimension(rom_rank);

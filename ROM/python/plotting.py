@@ -41,10 +41,10 @@ def plot_2d_flux(file_pattern, ranks, moment=0, prefix="fom", grid_res=200, pid=
         plt.savefig(outpath, dpi=200)
         plt.close()
 
-def plot_2d_lineout(output_dir, ranks, y_target=4.0, moment=0, grid_res=200, pid=0):
-    """Plot lineout at y_target of ROM and FOM."""
+def plot_2d_lineout(output_dir, ranks, y_target=4.0, moment=0, grid_res=200, pid=0, rom_prefix="rom"):
+    """Plot lineout at y_target of ROM-like result and FOM."""
     xs, ys, vals, G = load_2d_flux(str(output_dir / ("fom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
-    xs_, ys_, vals_, G = load_2d_flux(str(output_dir / ("rom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
+    xs_, ys_, vals_, G = load_2d_flux(str(output_dir / (rom_prefix + "_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
 
     for g in range(G):
         # Create regular grid
@@ -73,16 +73,16 @@ def plot_2d_lineout(output_dir, ranks, y_target=4.0, moment=0, grid_res=200, pid
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig(f"results/line_y{y_target}_rom_fom_{pid}_{g}.jpg")
+        plt.savefig(f"results/line_y{y_target}_{rom_prefix}_fom_{pid}_{g}.jpg")
         plt.close()
 
     error = np.linalg.norm(np.asarray(vals_)-np.asarray(vals))/np.linalg.norm(np.asarray(vals_))
     return error
 
-def plot_2d_lineout_eig(output_dir, ranks, y_target=4.0, moment=0, grid_res=200, pid=0):
-    """Plot lineout at y_target of ROM and FOM."""
+def plot_2d_lineout_eig(output_dir, ranks, y_target=4.0, moment=0, grid_res=200, pid=0, rom_prefix="rom"):
+    """Plot lineout at y_target of ROM-like eigenvector and FOM."""
     xs, ys, vals, G = load_2d_flux(str(output_dir / ("fom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
-    xs_, ys_, vals_, G = load_2d_flux(str(output_dir / ("rom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
+    xs_, ys_, vals_, G = load_2d_flux(str(output_dir / (rom_prefix + "_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
 
     for g in range(G):
         vals[g] /= np.linalg.norm(vals[g])
@@ -112,7 +112,7 @@ def plot_2d_lineout_eig(output_dir, ranks, y_target=4.0, moment=0, grid_res=200,
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig(f"results/line_y{y_target}_rom_fom_{pid}_{g}.jpg")
+        plt.savefig(f"results/line_y{y_target}_{rom_prefix}_fom_{pid}_{g}.jpg")
         plt.close()
 
 
@@ -122,10 +122,10 @@ def plot_2d_lineout_eig(output_dir, ranks, y_target=4.0, moment=0, grid_res=200,
 def plot_sv(num_groups):
     for i in range(num_groups):
         S = np.loadtxt("data/singular_values_g{}.txt".format(i))
-        plt.semilogy(S, 'o-')
-        plt.xlabel("Mode index")
-        plt.ylabel("Singular value")
-        plt.title("Singular value decay")
+        plt.semilogy(S, 'o')
+        plt.xlabel("Rank")
+        #plt.ylabel("Singular value")
+        #plt.title("Singular value decay")
         plt.grid(True)
         plt.tight_layout()
         plt.savefig("results/svd_decay_{}.jpg".format(i))
@@ -170,7 +170,7 @@ def plot_1d_eigenvector(fom_pattern, rom_pattern, ranks, moment=0, prefix="reed_
         plt.plot(fom_x[g], fom_vals[g], "-", label="FOM")
         plt.plot(rom_x[g], rom_vals[g], "--", label="ROM")
         plt.xlabel("x")
-        plt.ylabel("Flux")
+        plt.ylabel("$\phi$")
         plt.grid()
         plt.legend()
         outpath = f"results/{prefix}_{pid}_g_{g}.png"
@@ -180,3 +180,86 @@ def plot_1d_eigenvector(fom_pattern, rom_pattern, ranks, moment=0, prefix="reed_
 
     error = np.linalg.norm(np.array(rom_vals) - np.array(fom_vals)) / np.linalg.norm(fom_vals)
     return error
+
+
+def plot_2d_eigenvector(file_pattern, ranks, moment=0, prefix="fom", grid_res=200, pid=0):
+    """Create smooth full-color plots for each energy group eigenvector."""
+    xs, ys, vals, G = load_2d_flux(file_pattern, ranks, moment=moment)
+
+    for g in range(G):
+        # Normalize eigenvector
+        vals[g] = vals[g] / np.linalg.norm(vals[g])
+        vals[g] = np.abs(vals[g])
+
+        # Create regular grid
+        xi = np.linspace(xs[g].min(), xs[g].max(), grid_res)
+        yi = np.linspace(ys[g].min(), ys[g].max(), grid_res)
+        X, Y = np.meshgrid(xi, yi)
+
+        # Interpolate data onto grid
+        Z = scipy.interpolate.griddata((xs[g], ys[g]), vals[g], (X, Y), method="linear")
+
+        vmin = max(np.nanmin(Z), 1e-10)
+        vmax = np.nanmax(Z)
+        norm = LogNorm(vmin=vmin, vmax=vmax)
+
+        plt.figure(figsize=(6, 5))
+        im = plt.imshow(
+            Z,
+            extent=[xi.min(), xi.max(), yi.min(), yi.max()],
+            origin="lower",
+            aspect="equal",
+            cmap="viridis",
+            #norm=norm
+        )
+        plt.xlabel("x")
+        plt.ylabel("y")
+        cbar = plt.colorbar(im)
+        cbar.set_label("Eigenvector magnitude")
+        outpath = f"results/{prefix}_eig_group_{g}_{pid}.png"
+        plt.tight_layout()
+        plt.savefig(outpath, dpi=200)
+        plt.close()
+
+def plot_2d_eig_error(output_dir, ranks, moment=0, rom_prefix="rom", prefix="fom", grid_res=200, pid=0):
+    xs, ys, vals, G = load_2d_flux(str(output_dir / ("fom_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
+    xs_, ys_, vals_, G = load_2d_flux(str(output_dir / (rom_prefix + "_{}_".format(pid) + "{}.h5")), ranks, moment=moment)
+
+    for g in range(G):
+        # Normalize eigenvector
+        vals[g] = vals[g] / np.linalg.norm(vals[g])
+        vals[g] = np.abs(vals[g])
+
+        vals_[g] = vals_[g] / np.linalg.norm(vals_[g])
+        vals_[g] = np.abs(vals_[g])
+
+        # Create regular grid
+        xi = np.linspace(xs[g].min(), xs[g].max(), grid_res)
+        yi = np.linspace(ys[g].min(), ys[g].max(), grid_res)
+        X, Y = np.meshgrid(xi, yi)
+
+        # Interpolate data onto grid
+        Z = scipy.interpolate.griddata((xs[g], ys[g]), vals[g], (X, Y), method="linear")
+        Z_ = scipy.interpolate.griddata((xs[g], ys[g]), vals_[g], (X, Y), method="linear")
+
+        vmin = max(np.nanmin(Z), 1e-10)
+        vmax = np.nanmax(Z)
+        norm = LogNorm(vmin=vmin, vmax=vmax)
+
+        plt.figure(figsize=(6, 5))
+        im = plt.imshow(
+            np.abs(Z-Z_)/np.abs(Z),
+            extent=[xi.min(), xi.max(), yi.min(), yi.max()],
+            origin="lower",
+            aspect="equal",
+            cmap="viridis",
+            norm=norm
+        )
+        plt.xlabel("x")
+        plt.ylabel("y")
+        cbar = plt.colorbar(im)
+        cbar.set_label("Eigenvector magnitude")
+        outpath = f"results/error_eig_group_{g}_{pid}.png"
+        plt.tight_layout()
+        plt.savefig(outpath, dpi=200)
+        plt.close()

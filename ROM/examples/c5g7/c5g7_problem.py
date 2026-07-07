@@ -1,0 +1,157 @@
+from pathlib import Path
+import shutil
+
+import numpy as np
+
+import plotting
+import utils
+import xs
+
+
+class C5G7Problem:
+    def __init__(self, workdir, nprocs=48, ntrain=100, ntest=10):
+        self.workdir = Path(workdir)
+        self.deck_path = self.workdir / "base_c5g7.py"
+        self.gradient_deck_path = self.workdir / "gradients_c5g7.py"
+
+        self.nprocs = nprocs
+        self.ntrain = ntrain
+        self.ntest = ntest
+
+        # Fuel materials parameterized for C5G7 active-subspace gradients.
+        # The resulting parameter vector is the concatenation of each material's
+        # xs.py entrywise fission parameterization:
+        #   [sigma_f[g], sigma_c[g], S_0[g_from,g_to]] for each fuel material.
+        self.fuel_materials = [
+            {
+                "name": "UO2",
+                "block_id": 1,
+                "in_file": "materials/XS_UO2.xs",
+                "out_file": "data/XS_UO2.xs",
+                "kind": "fission",
+            },
+            {
+                "name": "7pMOX",
+                "block_id": 2,
+                "in_file": "materials/XS_7pMOX.xs",
+                "out_file": "data/XS_7pMOX.xs",
+                "kind": "fission",
+            },
+            {
+                "name": "4_3pMOX",
+                "block_id": 4,
+                "in_file": "materials/XS_4_3pMOX.xs",
+                "out_file": "data/XS_4_3pMOX.xs",
+                "kind": "fission",
+            },
+            {
+                "name": "8_7pMOX",
+                "block_id": 5,
+                "in_file": "materials/XS_8_7pMOX.xs",
+                "out_file": "data/XS_8_7pMOX.xs",
+                "kind": "fission",
+            },
+        ]
+
+        self.xs = xs.CrossSections(
+            self.fuel_materials,
+            frac=0.2,
+            transfer_tol=1.0e-14,
+            param_mode="entrywise",
+        )
+        self.bounds = self.xs.get_bounds()
+
+    def _copy_unparameterized_xs(self):
+        """Copy material files that are not controlled by xs.py into data/."""
+        data_dir = self.workdir / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        passthrough_files = [
+            "XS_water.xs",
+            "XS_guide_tube.xs",
+            "XS_fission_chamber.xs",
+        ]
+        for name in passthrough_files:
+            src = self.workdir / "materials" / name
+            dst = data_dir / name
+            if src.exists():
+                shutil.copyfile(src, dst)
+
+    def sample_training(self):
+        self._copy_unparameterized_xs()
+        self.training_set = utils.sample_LHS(self.bounds, self.ntrain)
+
+        params_path = self.workdir / "data" / "params.txt"
+        np.savetxt(str(params_path), self.training_set)
+
+    def load_training(self):
+        params_path = self.workdir / "data" / "params.txt"
+        self.training_set = np.loadtxt(str(params_path))
+
+    def sample_testing(self):
+        self._copy_unparameterized_xs()
+        self.testing_set = utils.sample_test(self.bounds, self.ntest)
+
+        params_path = self.workdir / "data" / "test_params.txt"
+        np.savetxt(str(params_path), self.testing_set)
+
+    def update_xs(self, pvec):
+        self._copy_unparameterized_xs()
+        self.xs.write_sample(pvec)
+
+    def plot_results(self):
+        errors = []
+        k_errors = []
+        speedups = []
+        mi_errors = []
+        mi_k_errors = []
+        mi_speedups = []
+
+        output_dir = self.workdir / "output"
+        results_dir = self.workdir / "results"
+
+        for i in range(self.ntest):
+            rom_time = np.loadtxt(str(results_dir / "online_time_{}.txt".format(i)))
+            mi_time = np.loadtxt(str(results_dir / "mipod_time_{}.txt".format(i)))
+            fom_time = np.loadtxt(str(results_dir / "offline_time_{}.txt".format(i)))
+
+            error = plotting.plot_2d_eig_error(output_dir, ranks=range(48), pid=i)
+            k_error = np.abs(
+                np.loadtxt(output_dir / "fom_k_{}.txt".format(i))
+                - np.loadtxt(output_dir / "rom_k_{}.txt".format(i))
+            )
+
+            mi_error = plotting.plot_2d_lineout_eig(
+                output_dir,
+                ranks=range(self.nprocs),
+                pid=i,
+                rom_prefix="mipod",
+            )
+            mi_k_error = np.abs(
+                np.loadtxt(output_dir / "fom_k_{}.txt".format(i))
+                - np.loadtxt(output_dir / "mipod_k_{}.txt".format(i))
+            )
+            plotting.plot_2d_eigenvector(str(output_dir / ("fom_{}_".format(i) + "{}.h5")), ranks=range(48), prefix="fom", pid=i)
+            plotting.plot_2d_eigenvector(str(output_dir / ("rom_{}_".format(i) + "{}.h5")), ranks=range(48), prefix="rom", pid=i)
+
+            errors.append(error)
+            k_errors.append(k_error)
+            speedups.append(fom_time / rom_time)
+
+            mi_errors.append(mi_error)
+            mi_k_errors.append(mi_k_error)
+            mi_speedups.append(fom_time / mi_time)
+
+        print("Avg Eigenvector Error ", np.mean(errors))
+        np.savetxt(results_dir / "errors.txt", errors)
+        print("Avg k Error ", np.mean(k_errors) * 1e5, "pcm")
+        np.savetxt(results_dir / "k_errors.txt", k_errors)
+        print("Avg Speedup ", np.mean(speedups))
+        np.savetxt(results_dir / "speedups.txt", speedups)
+
+        print("Avg MI Eigenvector Error ", np.nanmean(mi_errors))
+        np.savetxt(results_dir / "mi_errors.txt", mi_errors)
+        print("Avg MI k Error ", np.mean(mi_k_errors) * 1e5, "pcm")
+        np.savetxt(results_dir / "mi_k_errors.txt", mi_k_errors)
+        print("Avg MI Speedup ", np.mean(mi_speedups))
+        np.savetxt(results_dir / "mi_speedups.txt", mi_speedups)

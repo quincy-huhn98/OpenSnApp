@@ -5,6 +5,7 @@
 #include "rom/rom_problem.h"
 #include "rom/steady_state_rom_solver.h"
 #include "rom/pi_keigen_rom_solver.h"
+#include "rom/nl_keigen_rom_solver.h"
 #include "modules/solver.h"
 #include <memory>
 #include <string>
@@ -181,6 +182,64 @@ void WrapROM(py::module& m)
             R"(
             Return the current k‑eigenvalue.
             )");
+
+  // NLKEigenROMSolver
+  auto nl_rom_solver =
+      py::class_<NLKEigenROMSolver,
+                 std::shared_ptr<NLKEigenROMSolver>,
+                 Solver>(
+        m,
+        "NLKEigenROMSolver",
+        R"(
+        Non-linear k eigen ROM driver.
+
+        Wrapper of :cpp:class:`opensn::NLKEigenROMSolver`.
+
+        The offline phase uses the full-order non-linear k-eigenvalue solver.
+        The merge, systems, MIPOD, and online phases use the same ROM workflow
+        as the power-iteration k-eigenvalue ROM solver.
+        )"
+      );
+
+  nl_rom_solver.def(
+      py::init([](py::kwargs kw)
+      {
+        auto params = KwargsToParams<NLKEigenROMSolver>(kw);
+
+        return std::make_shared<NLKEigenROMSolver>(params);
+      }),
+      R"(
+      NLKEigenROMSolver(**kwargs)
+
+      Construct a non-linear k-eigen ROM driver that dispatches to ROM or FOM
+      paths depending on the ROM options and phase.
+      )"
+  );
+
+  nl_rom_solver
+      .def("Initialize", &NLKEigenROMSolver::Initialize,
+           R"(
+           Initialize()
+
+           Prepare the non-linear solver and ROM controller for execution.
+           )")
+      .def("Execute", &NLKEigenROMSolver::Execute,
+           R"(
+           Execute()
+
+           Run the solve. Behavior depends on the ROM phase:
+             - 'offline' : full-order non-linear k-eigen solve + snapshot sample
+             - 'merge'   : merge snapshots into bases
+             - 'systems' : assemble reduced systems and write libROM files
+             - 'mipod'   : assemble and solve the minimally invasive reduced system
+             - 'online'  : interpolate and solve reduced system
+           )")
+      .def("GetEigenvalue",
+           &NLKEigenROMSolver::GetEigenvalue,
+           R"(
+           Return the current k-eigenvalue.
+           )");
+
 }
 // clang-format on
 
