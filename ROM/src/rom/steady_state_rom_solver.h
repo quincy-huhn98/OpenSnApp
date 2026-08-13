@@ -17,15 +17,18 @@ protected:
   std::shared_ptr<ROMProblem> rom_problem_;
 
 public:
+  /** Constructs a steady-state source ROM solver. */
   explicit SteadyStateROMSolver(const InputParameters& params);
 
+  /** Initializes the steady-state ROM solver. */
   void Initialize();
 
+  /** Executes the selected offline, merge, systems, MI-POD, or online ROM phase. */
   void Execute();
 
 public:
+  /** Returns the input-parameter schema for SteadyStateROMSolver. */
   static InputParameters GetInputParameters();
-
 };
 
 } // namespace opensn

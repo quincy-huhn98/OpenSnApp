@@ -46,10 +46,11 @@ jobs:
         shell: bash
         run: |
           module load opensn/gcc/14 python3/3.12.3 libROM/1.0.0
-          cd ROM
-          export PYTHONPATH=$PWD/python
-          cd examples/reed && python3 run_rom_reed.py --exe ../../build/rom_app_exec
-          cd ../1dk && python3 run_rom_P58.py --exe ../../build/rom_app_exec
+          ROM/test/run_tests \
+            --exe "$PWD/ROM/build/rom_app_exec" \
+            --directory "$PWD/ROM/test/rom" \
+            --weights 7 \
+            --jobs 1
       - name: compile diffusion
         shell: bash
         run: |

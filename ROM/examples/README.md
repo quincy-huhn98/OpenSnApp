@@ -24,6 +24,9 @@ Each example folder typically contains:
 - [`1dk/`](1dk/README.md)  
   1-D k-eigenvalue test problem with H2O/U material files.
 
+- [`c5g7/`](c5g7/README.md)
+  C5G7 k-eigenvalue problem with fuel-material active-subspace sampling.
+
 
 ## Running
 

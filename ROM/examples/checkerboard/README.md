@@ -1,25 +1,12 @@
-# checkerboard/
+# Checkerboard
 
-**Location:** [repo root](../../README.md) / [examples/](../README.md) / `checkerboard/`
-
-Single-group checkerboard/lattice example and ROM driver.
-
----
-
-## Files
-
-- `base_checkerboard.py`  
-  Base deck defining geometry, materials, and solver setup.
-
-- `checkerboard_problem.py`  
-  Problem definition and ROM configuration.
-
-- `run_rom_checkerboard.py`  
-  Entry-point script for running the ROM workflow.
-
----
-
-## How to Run
+Single-group, two-dimensional checkerboard ROM example.
 
 ```bash
-python run_rom_checkerboard.py --exe=path/to/app/exe
+export PYTHONPATH=/path/to/OpenSnApp/ROM/python
+python run_rom_checkerboard.py --exe=/path/to/rom_app_exec --nprocs=4
+```
+
+Use `--nprocs`, `--ntrain`, and `--ntest` to size the run. Add `--five-param`
+for the source-strength parameter or `--mipod` for optional MIPOD testing.
+Runtime files are written to `data/`, `basis/`, `output/`, and `results/`.

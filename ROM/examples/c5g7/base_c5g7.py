@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""C5G7 k-eigenvalue ROM deck using the nonlinear ROM eigensolver.
-
-The mesh, material block mapping, quadrature, boundary conditions, sweep type,
-and nonlinear solver tolerances match the reference C5G7 nonlinear deck.  The
-phase/parameter handling follows the current ROM driver convention.
-"""
+"""C5G7 k-eigenvalue ROM deck using the nonlinear ROM eigensolver."""
 
 import os
 import sys
@@ -60,6 +55,15 @@ def _collect_parameter_vector():
         i += 1
     return values
 
+
+def _parameter_file(new_point):
+    """Select physical or active training coordinates for interpolation."""
+    active_file = "data/params_AS.txt"
+    if os.path.exists(active_file):
+        active_points = np.atleast_2d(np.loadtxt(active_file))
+        if active_points.shape[1] == len(new_point):
+            return active_file
+    return "data/params.txt"
 
 
 if __name__ == "__main__":
@@ -131,7 +135,7 @@ if __name__ == "__main__":
         rom_options = {
             "param_id": param_id,
             "phase": run_phase,
-            "param_file": "data/params_AS.txt" if os.path.exists("data/params_AS.txt") else "data/params.txt",
+            "param_file": _parameter_file(new_point),
             "new_point": new_point,
         }
     else:
@@ -168,6 +172,6 @@ if __name__ == "__main__":
             phys.WriteFluxMoments("output/fom_{}_".format(param_id))
             if rank == 0:
                 np.savetxt("output/fom_k_{}.txt".format(param_id), [k_eff])
-    elif run_phase == "offline":    
+    elif run_phase == "offline":
         if rank == 0:
             np.savetxt("output/fom_k_{}.txt".format(param_id), [k_eff])

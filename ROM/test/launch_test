@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+num_procs=$1
+shift
+
+if [[ ${num_procs} -eq 1 ]]; then
+  exec "$@"
+fi
+
+exec mpiexec -n "${num_procs}" "$@"

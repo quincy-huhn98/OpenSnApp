@@ -19,84 +19,84 @@ namespace opensn
 class ROMProblem : public Problem
 {
 public:
-  /// Input parameters based construction.
+  /** Constructs a ROM problem and attaches it to an existing discrete-ordinates problem. */
   explicit ROMProblem(const InputParameters& params);
 
+  /** Returns the schema for the nested ROM options block. */
   static InputParameters GetOptionsBlock();
-  
+  /** Returns the input-parameter schema for ROMProblem. */
   static InputParameters GetInputParameters();
+  /** Constructs a ROMProblem through the OpenSn object factory. */
   static std::shared_ptr<ROMProblem> Create(const ParameterBlock& params);
 
+  /** Parses and stores ROM options from an input block. */
   void SetOptions(const InputParameters& input);
-  /// Returns a reference to the solver options.
+  /** Returns a reference to the solver options. */
   ROMOptions& GetOptions();
 
-  /// Save current Phi in the basis generator
+  /** Collects and writes one snapshot per energy group for snapshot identifier @p id. */
   void TakeSample(int id);
 
-  /// Load snapshots and perform SVD
+  /** Loads @p nsnaps snapshots per group and builds the group-wise spatial bases. */
   void MergePhase(int nsnaps);
 
-  /// Load the params from file
+  /** Reads a whitespace-delimited parameter matrix from @p filename. */
   void ReadParamMatrix(const std::string& filename);
 
+  /** Loads the group-wise reduced bases from disk. */
   void LoadUgs();
 
-  /// Calculate AU via sweeps
+  /** Assembles the full-order operator image AU used to form reduced systems. */
   std::shared_ptr<CAROM::Matrix> AssembleAU();
 
-  /// Sweep to form RHS
+  /** Assembles the full-order right-hand-side vector. */
   std::shared_ptr<CAROM::Vector> AssembleRHS();
-  
-  /// Sweep to form BU
+
+  /** Assembles the full-order production-operator image BU. */
   std::shared_ptr<CAROM::Matrix> AssembleBU();
 
-  /// Assemble the reduced system and save to file
-  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU, 
-                   std::shared_ptr<CAROM::Vector>& b, 
+  /** Forms and writes the reduced source system from @p AU and @p b. */
+  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU,
+                   std::shared_ptr<CAROM::Vector>& b,
                    const std::string& Ar_filename,
                    const std::string& rhs_filename);
 
-  /// Assemble the reduced system and save to file
-  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU, 
-                   std::shared_ptr<CAROM::Matrix>& BU, 
+  /** Forms and writes the reduced k-eigenvalue system from @p AU and @p BU. */
+  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU,
+                   std::shared_ptr<CAROM::Matrix>& BU,
                    const std::string& Ar_filename,
                    const std::string& Br_filename);
 
-  /// Assemble and Solve given LHS and RHS of a ROM system
-  void MIPOD(std::shared_ptr<CAROM::Matrix>& Ar,
-                std::shared_ptr<CAROM::Vector>& rhs);
+  /** Builds a minimally invasive basis, solves the source ROM, and reconstructs the state. */
+  void MIPOD(std::shared_ptr<CAROM::Matrix>& Ar, std::shared_ptr<CAROM::Vector>& rhs);
 
-  /// Assemble and solveSolve given LHS and RHS of a k-eigenvalue ROM system
-  double MIPOD(std::shared_ptr<CAROM::Matrix>& Ar,
-                  std::shared_ptr<CAROM::Matrix>& Br);
+  /** Builds a minimally invasive basis and solves the k-eigenvalue ROM. */
+  double MIPOD(std::shared_ptr<CAROM::Matrix>& Ar, std::shared_ptr<CAROM::Matrix>& Br);
 
-  /// Solve given LHS and RHS of a ROM system
-  void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
-                std::shared_ptr<CAROM::Vector>& rhs);
+  /** Solves a reduced source system and reconstructs the full-order flux moments. */
+  void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar, std::shared_ptr<CAROM::Vector>& rhs);
 
-  /// Solve given LHS and RHS of a k-eigenvalue ROM system
-  double SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
-                  std::shared_ptr<CAROM::Matrix>& Br);
+  /** Solves a reduced k-eigenvalue system and reconstructs the full-order state. */
+  double SolveROM(std::shared_ptr<CAROM::Matrix>& Ar, std::shared_ptr<CAROM::Matrix>& Br);
 
-  /// Load Ar and initialize libROM interpolator objects
+  /** Loads reduced loss matrices and initializes their interpolator at @p desired_point. */
   void SetupArInterpolator(CAROM::Vector& desired_point);
 
-  /// Load br and initialize libROM interpolator objects
+  /** Loads reduced source vectors and initializes their interpolator at @p desired_point. */
   void SetupRHSrInterpolator(CAROM::Vector& desired_point);
 
-  /// Load Br and initialize libROM interpolator objects
+  /** Loads reduced production matrices and initializes their interpolator at @p desired_point. */
   void SetupBrInterpolator(CAROM::Vector& desired_point);
 
-  void InterpolateArAndRHSr(
-    CAROM::Vector& desired_point,
-    std::shared_ptr<CAROM::Matrix>& Ar_interp,
-    std::shared_ptr<CAROM::Vector>& rhs_interp);
+  /** Interpolates the reduced loss matrix and source vector at @p desired_point. */
+  void InterpolateArAndRHSr(CAROM::Vector& desired_point,
+                            std::shared_ptr<CAROM::Matrix>& Ar_interp,
+                            std::shared_ptr<CAROM::Vector>& rhs_interp);
 
-  void InterpolateArAndBr(
-    CAROM::Vector& desired_point,
-    std::shared_ptr<CAROM::Matrix>& Ar_interp,
-    std::shared_ptr<CAROM::Matrix>& Br_interp);
+  /** Interpolates the reduced loss and production matrices at @p desired_point. */
+  void InterpolateArAndBr(CAROM::Vector& desired_point,
+                          std::shared_ptr<CAROM::Matrix>& Ar_interp,
+                          std::shared_ptr<CAROM::Matrix>& Br_interp);
 
 protected:
   std::unique_ptr<CAROM::Matrix> spatial_basis_;

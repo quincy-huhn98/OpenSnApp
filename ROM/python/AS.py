@@ -1,3 +1,10 @@
+"""Active-subspace utilities using the active-plane approximation.
+
+All ROM test problems assume the inactive coordinates are fixed at ``z = 0``.
+Full normalized parameters are therefore reconstructed as
+``x = W_active @ y``; inactive-subspace variation is intentionally omitted.
+"""
+
 import numpy as np
 from scipy.stats import qmc
 
@@ -123,15 +130,16 @@ class ActiveSubspace:
 
         return y.T
 
-    def reconstruct_from_active(self, y, inactive_value=None):
+    def reconstruct_from_active(self, y):
         """
         Map active coordinates back to full physical parameter space.
 
         Uses the literature convention
 
-            x = W_active y + W_inactive z
+            x = W_active y
 
-        with y and z stored internally as column samples.
+        with y stored internally as column samples. Inactive coordinates are
+        fixed at z = 0.
         """
         if self.W_active is None:
             raise RuntimeError("Call set_rank(rank) first.")
@@ -144,26 +152,7 @@ class ActiveSubspace:
         if y.shape[1] != self.rank:
             raise ValueError(f"Expected active samples with dimension {self.rank}.")
 
-        W1 = self.W_active
-        W2 = self.evecs[:, self.rank:]
-
-        y_col = y.T
-
-        if inactive_value is None:
-            x_col = W1 @ y_col
-        else:
-            inactive_value = np.asarray(inactive_value, dtype=float)
-
-            if inactive_value.ndim == 1:
-                inactive_value = inactive_value[None, :]
-
-            inactive_dim = self.n_params - self.rank
-            if inactive_value.shape[1] != inactive_dim:
-                raise ValueError(
-                    f"Expected inactive samples with dimension {inactive_dim}."
-                )
-
-            x_col = W1 @ y_col + W2 @ inactive_value.T
+        x_col = self.W_active @ y.T
 
         return self.unnormalize(x_col.T)
 
@@ -171,21 +160,20 @@ class ActiveSubspace:
         self,
         n_samples,
         method="lhs",
-        inactive_scale=0.0,
         clip=True,
         reject_outside=False,
         max_attempts=10000,
+        seed=None,
     ):
         """
         Create a training set biased by the active subspace.
 
         Samples are generated in normalized coordinates as
 
-            x = W_active y + W_inactive z
+            x = W_active y
 
-        where y is sampled in the active variables and z is sampled in the
-        inactive variables. If inactive_scale=0.0, this recovers the original
-        active-only behavior.
+        where y is sampled in the active variables and inactive coordinates
+        are fixed at z = 0.
 
         Returns
         -------
@@ -195,6 +183,9 @@ class ActiveSubspace:
             Corresponding active variables.
         x_train : ndarray, shape (n_samples, n_params)
             Normalized full-space samples.
+
+        ``seed`` optionally makes both Latin-hypercube and uniform sampling
+        reproducible.
         """
         if self.W_active is None:
             raise RuntimeError("Call set_rank(rank) first.")
@@ -202,24 +193,21 @@ class ActiveSubspace:
         if n_samples < 1:
             raise ValueError("n_samples must be positive.")
 
-        if inactive_scale < 0.0 or inactive_scale > 1.0:
-            raise ValueError("inactive_scale must be between 0 and 1.")
-
         W1 = self.W_active
-        W2 = self.evecs[:, self.rank:]
-        inactive_dim = self.n_params - self.rank
+        rng = np.random.default_rng(seed)
 
         def sample_unit(n, dim):
             if dim == 0:
                 return np.zeros((n, 0))
 
             if method == "lhs":
-                sampler = qmc.LatinHypercube(d=dim)
+                lhs_seed = int(rng.integers(0, np.iinfo(np.uint32).max))
+                sampler = qmc.LatinHypercube(d=dim, seed=lhs_seed)
                 u = sampler.random(n)
                 return 2.0 * u - 1.0
 
             if method == "uniform":
-                return np.random.uniform(-1.0, 1.0, size=(n, dim))
+                return rng.uniform(-1.0, 1.0, size=(n, dim))
 
             raise ValueError("method must be 'lhs' or 'uniform'.")
 
@@ -232,7 +220,7 @@ class ActiveSubspace:
             if attempts > max_attempts:
                 raise RuntimeError(
                     f"Only generated {n_collected}/{n_samples} valid samples. "
-                    "Try smaller inactive_scale or disable rejection."
+                    "Try disabling rejection."
                 )
 
             n_needed = n_samples - n_collected
@@ -240,11 +228,7 @@ class ActiveSubspace:
 
             y = sample_unit(n_batch, self.rank)
 
-            if inactive_dim > 0 and inactive_scale > 0.0:
-                z = inactive_scale * sample_unit(n_batch, inactive_dim)
-                x = W1 @ y.T + W2 @ z.T
-            else:
-                x = W1 @ y.T
+            x = W1 @ y.T
 
             if reject_outside:
                 valid = np.all((x >= -1.0) & (x <= 1.0), axis=0)

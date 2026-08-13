@@ -30,35 +30,26 @@ ROMProblem::GetInputParameters()
   params.ChangeExistingParamToOptional("name", "ROMProblem");
 
   params.AddRequiredParameter<std::shared_ptr<Problem>>(
-      "problem", "An existing discrete ordinates problem to attach the ROM controller to.");
+    "problem", "An existing discrete ordinates problem to attach the ROM controller to.");
 
   // Optional nested ROM options block (phase, ids, files, new_point, etc.)
   params.AddOptionalParameterBlock(
-      "options", ParameterBlock(), "ROM control options (phase, param_id, param_file, new_point, take_sample)");
+    "options",
+    ParameterBlock(),
+    "ROM control options (phase, param_id, param_file, new_point, take_sample)");
 
   return params;
 }
 
-/** Factory helper that constructs a ROMProblem via the OpenSn object factory.
- *
- * \param params Parameter block (typically produced by the input system).
- * \return Shared pointer to a constructed ROMProblem.
- */
 std::shared_ptr<ROMProblem>
 ROMProblem::Create(const ParameterBlock& params)
 {
   return CreateObject<ROMProblem>("rom::ROMProblem", params);
 }
 
-/** Constructs a ROMProblem and attaches it to an existing LBSProblem.
- *
- * The `problem` parameter must refer to a valid LBSProblem instance.
- * If an `options` block is provided, it is validated against GetOptionsBlock()
- * and stored into the internal ROMOptions structure.
- */
 ROMProblem::ROMProblem(const InputParameters& params)
   : Problem(params),
-  lbs_problem_(params.GetSharedPtrParam<Problem, DiscreteOrdinatesProblem>("problem"))
+    lbs_problem_(params.GetSharedPtrParam<Problem, DiscreteOrdinatesProblem>("problem"))
 {
   // Initialize options
   if (params.IsParameterValid("options"))
@@ -69,14 +60,6 @@ ROMProblem::ROMProblem(const InputParameters& params)
   }
 }
 
-/** Collects and writes one snapshot per energy group for the current state.
- *
- * This routine extracts the current `phi_new` vector from the attached LBSProblem,
- * forms a per-group snapshot of size (local_nodes * moments), and writes it using
- * libROM's snapshot format.
- *
- * \param id Snapshot identifier appended to the snapshot filename.
- */
 void
 ROMProblem::TakeSample(int id)
 {
@@ -87,7 +70,7 @@ ROMProblem::TakeSample(int id)
 
   auto num_moments = lbs_problem_->GetNumMoments();
   auto num_groups = lbs_problem_->GetNumGroups();
-  auto num_local_nodes  = lbs_problem_->GetLocalNodeCount();
+  auto num_local_nodes = lbs_problem_->GetLocalNodeCount();
   std::vector<double> phi_new_local = lbs_problem_->GetPhiNewLocal();
 
   for (int g = 0; g < num_groups; ++g)
@@ -103,12 +86,12 @@ ROMProblem::TakeSample(int id)
 
     for (int n = 0; n < num_local_nodes; ++n)
     {
-      size_t node_base_full  = n * num_moments * num_groups;
+      size_t node_base_full = n * num_moments * num_groups;
       size_t node_base_group = n * num_moments;
 
       for (int m = 0; m < num_moments; ++m)
       {
-        auto idx_full  = node_base_full  + m * num_groups + g;
+        auto idx_full = node_base_full + m * num_groups + g;
         auto idx_group = node_base_group + m;
 
         phi_group[idx_group] = phi_new_local[idx_full];
@@ -120,14 +103,6 @@ ROMProblem::TakeSample(int id)
   }
 }
 
-/** Builds (merges) group-wise spatial bases from previously written snapshots.
- *
- * For each group, loads `nsnaps` snapshot files, performs an SVD-based basis
- * construction with a prescribed tolerance and maximum rank, and writes basis data.
- * Singular values are additionally dumped to text on rank 0 for diagnostics.
- *
- * \param nsnaps Number of snapshot IDs to load per group.
- */
 void
 ROMProblem::MergePhase(int nsnaps)
 {
@@ -137,7 +112,7 @@ ROMProblem::MergePhase(int nsnaps)
 
   auto num_moments = lbs_problem_->GetNumMoments();
   auto num_groups = lbs_problem_->GetNumGroups();
-  auto num_local_nodes  = lbs_problem_->GetLocalNodeCount();
+  auto num_local_nodes = lbs_problem_->GetLocalNodeCount();
   auto group_dim = num_local_nodes * num_moments;
   auto full_dim = num_local_nodes * num_moments * num_groups;
 
@@ -154,7 +129,8 @@ ROMProblem::MergePhase(int nsnaps)
 
     for (auto paramID = 0; paramID < nsnaps; ++paramID)
     {
-      auto snap_file = "basis/snapshots_" + std::to_string(g) + "_" + std::to_string(paramID) + "_snapshot";
+      auto snap_file =
+        "basis/snapshots_" + std::to_string(g) + "_" + std::to_string(paramID) + "_snapshot";
       loader.loadSamples(snap_file, "snapshot");
     }
 
@@ -174,13 +150,6 @@ ROMProblem::MergePhase(int nsnaps)
   }
 }
 
-/** Reads a whitespace-delimited parameter matrix from a text file.
- *
- * Each non-empty line becomes one parameter point. Points are stored as libROM
- * vectors in \c param_points.
- *
- * \param filename Path to the parameter matrix text file.
- */
 void
 ROMProblem::ReadParamMatrix(const std::string& filename)
 {
@@ -198,16 +167,10 @@ ROMProblem::ReadParamMatrix(const std::string& filename)
       row.push_back(val);
 
     if (!row.empty())
-      param_points.emplace_back(row.data(), static_cast<int>(row.size()),false,true);
+      param_points.emplace_back(row.data(), static_cast<int>(row.size()), false, true);
   }
 }
 
-/** Loads the group-wise reduced bases from disk.
- *
- * Each group basis is read from the corresponding libROM basis file and
- * stored in \c Ugs_. The reduced dimension is inferred from the first
- * basis and stored in \c rom_rank.
- */
 void
 ROMProblem::LoadUgs()
 {
@@ -218,26 +181,18 @@ ROMProblem::LoadUgs()
     const auto basis_root = "basis/basis_" + std::to_string(g);
     auto reader = std::make_unique<CAROM::BasisReader>(basis_root);
     auto Ug = reader->getSpatialBasis();
-    if (g == 0) rom_rank = Ug->numColumns();
+    if (g == 0)
+      rom_rank = Ug->numColumns();
     Ugs_.push_back(std::move(Ug));
   }
 }
 
-/** Assembles the global (local-DOF) matrix AU used to form reduced systems.
- *
- * For each group \c g and basis vector \c r, this method:
- * 1. Injects the basis column into the full-order dof layout.
- * 2. Uses the LBS WGS context to perform a sweep with that vector as a source.
- * 3. Forms the corresponding column of AU as (injected_basis - resulting_phi_new).
- *
- * \return Shared pointer to AU of size (local_dofs) x (rom_rank * num_groups).
- */
 std::shared_ptr<CAROM::Matrix>
 ROMProblem::AssembleAU()
 {
   auto num_moments = lbs_problem_->GetNumMoments();
   auto num_groups = lbs_problem_->GetNumGroups();
-  auto num_local_nodes  = lbs_problem_->GetLocalNodeCount();
+  auto num_local_nodes = lbs_problem_->GetLocalNodeCount();
   const auto num_local_dofs = num_local_nodes * num_moments * num_groups;
 
   std::vector<std::unique_ptr<CAROM::Matrix>> Ugs;
@@ -247,21 +202,22 @@ ROMProblem::AssembleAU()
     const auto basis_root = "basis/basis_" + std::to_string(g);
     auto reader = std::make_unique<CAROM::BasisReader>(basis_root);
     auto Ug = reader->getSpatialBasis();
-    if (g == 0) rom_rank = Ug->numColumns();
+    if (g == 0)
+      rom_rank = Ug->numColumns();
     Ugs.push_back(std::move(Ug));
   }
 
   auto AU = std::make_shared<CAROM::Matrix>(num_local_dofs, rom_rank * num_groups, true);
 
   // Assuming one groupset for ROM problems
-  assert(lbs_problem_->GetNumWGSSolvers() == 1); 
+  assert(lbs_problem_->GetNumWGSSolvers() == 1);
   auto raw_context = lbs_problem_->GetWGSSolver(0)->GetContext();
-  auto gs_context    = std::dynamic_pointer_cast<WGSContext>(raw_context);
-  const auto scope   = gs_context->lhs_src_scope;
+  auto gs_context = std::dynamic_pointer_cast<WGSContext>(raw_context);
+  const auto scope = gs_context->lhs_src_scope;
 
   auto& phi_old_local = lbs_problem_->GetPhiOldLocal();
   auto& q_moments_local = lbs_problem_->GetQMomentsLocal();
-  
+
   for (auto g = 0; g < num_groups; ++g)
   {
     for (auto r = 0; r < rom_rank; ++r)
@@ -269,7 +225,7 @@ ROMProblem::AssembleAU()
       std::vector<double> basis_local(num_local_dofs, 0.0);
       phi_old_local.assign(phi_old_local.size(), 0.0);
 
-      auto col_g  = Ugs[g]->getColumn(r);
+      auto col_g = Ugs[g]->getColumn(r);
       size_t rowg = 0;
       for (size_t n = 0; n < num_local_nodes; ++n)
         for (size_t m = 0; m < static_cast<size_t>(num_moments); ++m, ++rowg)
@@ -293,15 +249,7 @@ ROMProblem::AssembleAU()
   return AU;
 }
 
-/** Assembles the full-order right-hand-side vector used for ROM system build.
- *
- * The RHS corresponds to the sweep result for the current "old" iterate/source
- * configuration and is used with AU to form the reduced system:
- * rhs = AU^T b.
- *
- * \return Shared pointer to b of length local_dofs.
- */
-std::shared_ptr<CAROM::Vector> 
+std::shared_ptr<CAROM::Vector>
 ROMProblem::AssembleRHS()
 {
   auto num_moments = lbs_problem_->GetNumMoments();
@@ -320,7 +268,8 @@ ROMProblem::AssembleRHS()
   auto& q_moments_local = lbs_problem_->GetQMomentsLocal();
 
   q_moments_local.assign(q_moments_local.size(), 0.0);
-  gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local, phi_old_local, scope);
+  gs_context_ptr->set_source_function(
+    gs_context_ptr->groupset, q_moments_local, phi_old_local, scope);
 
   // Sweep
   gs_context_ptr->ApplyInverseTransportOperator(scope);
@@ -331,21 +280,12 @@ ROMProblem::AssembleRHS()
   return b;
 }
 
-/** Assembles the full-order operator image BU for k-eigenvalue ROM systems.
- *
- * For each group \c g and basis vector \c r, this method injects the basis
- * column into the full-order dof layout, applies the inverse transport
- * operator with fission, scattering, and fixed sources enabled, and stores
- * the resulting vector as a column of BU.
- *
- * \return Shared pointer to BU of size (local_dofs) x (rom_rank * num_groups).
- */
 std::shared_ptr<CAROM::Matrix>
 ROMProblem::AssembleBU()
 {
   auto num_moments = lbs_problem_->GetNumMoments();
   auto num_groups = lbs_problem_->GetNumGroups();
-  auto num_local_nodes  = lbs_problem_->GetLocalNodeCount();
+  auto num_local_nodes = lbs_problem_->GetLocalNodeCount();
   const auto num_local_dofs = num_local_nodes * num_moments * num_groups;
 
   auto BU = std::make_shared<CAROM::Matrix>(num_local_dofs, rom_rank * num_groups, true);
@@ -353,12 +293,12 @@ ROMProblem::AssembleBU()
   // Assuming one groupset for ROM problems
   assert(lbs_problem_->GetNumWGSSolvers() == 1);
   auto raw_context = lbs_problem_->GetWGSSolver(0)->GetContext();
-  auto gs_context    = std::dynamic_pointer_cast<WGSContext>(raw_context);
-  const auto scope   = APPLY_AGS_FISSION_SOURCES | APPLY_WGS_FISSION_SOURCES;
+  auto gs_context = std::dynamic_pointer_cast<WGSContext>(raw_context);
+  const auto scope = APPLY_AGS_FISSION_SOURCES | APPLY_WGS_FISSION_SOURCES;
 
   auto& phi_old_local = lbs_problem_->GetPhiOldLocal();
   auto& q_moments_local = lbs_problem_->GetQMomentsLocal();
-  
+
   for (auto g = 0; g < num_groups; ++g)
   {
     for (auto r = 0; r < rom_rank; ++r)
@@ -366,7 +306,7 @@ ROMProblem::AssembleBU()
       std::vector<double> basis_local(num_local_dofs, 0.0);
       phi_old_local.assign(phi_old_local.size(), 0.0);
 
-      auto col_g  = Ugs_[g]->getColumn(r);
+      auto col_g = Ugs_[g]->getColumn(r);
       size_t rowg = 0;
       for (size_t n = 0; n < num_local_nodes; ++n)
         for (size_t m = 0; m < static_cast<size_t>(num_moments); ++m, ++rowg)
@@ -390,24 +330,11 @@ ROMProblem::AssembleBU()
   return BU;
 }
 
-/** Forms and writes the reduced system (Ar, rhs) for a given AU and b.
- *
- * Computes:
- * - rhs = AU^T * b
- * - Ar  = AU^T * AU
- * and writes them to libROM files.
- *
- * \param AU Full-order operator matrix assembled by AssembleAU().
- * \param b  Full-order RHS vector assembled by AssembleRHS().
- * \param Ar_filename Output filename for Ar.
- * \param rhs_filename Output filename for rhs.
- */
-void 
-ROMProblem::AssembleROM(
-  std::shared_ptr<CAROM::Matrix>& AU,
-  std::shared_ptr<CAROM::Vector>& b,
-  const std::string& Ar_filename,
-  const std::string& rhs_filename)
+void
+ROMProblem::AssembleROM(std::shared_ptr<CAROM::Matrix>& AU,
+                        std::shared_ptr<CAROM::Vector>& b,
+                        const std::string& Ar_filename,
+                        const std::string& rhs_filename)
 {
   // rhs = AU^T * b
   auto rhs = AU->transposeMult(*b);
@@ -420,24 +347,11 @@ ROMProblem::AssembleROM(
   rhs->write(rhs_filename);
 }
 
-/** Forms and writes the reduced matrices (Ar, Br) for a k-eigenvalue ROM.
- *
- * Computes:
- * - Br = AU^T * BU
- * - Ar = AU^T * AU
- * and writes both matrices to libROM files.
- *
- * \param AU Full-order operator matrix assembled by AssembleAU().
- * \param BU Full-order operator image assembled by AssembleBU().
- * \param Ar_filename Output filename for Ar.
- * \param Br_filename Output filename for Br.
- */
-void 
-ROMProblem::AssembleROM(
-  std::shared_ptr<CAROM::Matrix>& AU,
-  std::shared_ptr<CAROM::Matrix>& BU,
-  const std::string& Ar_filename,
-  const std::string& Br_filename)
+void
+ROMProblem::AssembleROM(std::shared_ptr<CAROM::Matrix>& AU,
+                        std::shared_ptr<CAROM::Matrix>& BU,
+                        const std::string& Ar_filename,
+                        const std::string& Br_filename)
 {
   // Br = AU^T * BU
   auto Br = AU->transposeMult(*BU);
@@ -451,9 +365,7 @@ ROMProblem::AssembleROM(
 }
 
 void
-ROMProblem::MIPOD(
-  std::shared_ptr<CAROM::Matrix>& AU,
-  std::shared_ptr<CAROM::Vector>& b)
+ROMProblem::MIPOD(std::shared_ptr<CAROM::Matrix>& AU, std::shared_ptr<CAROM::Vector>& b)
 {
   // rhs = AU^T * b
   auto rhs = AU->transposeMult(*b);
@@ -480,14 +392,15 @@ ROMProblem::MIPOD(
     for (int r = 0; r < rom_rank; ++r)
     {
       const int cr_idx = g * rom_rank + r;
-      const double cr  = (*c_vec)(cr_idx);
+      const double cr = (*c_vec)(cr_idx);
 
       auto col_g = Ugs_[g]->getColumn(r);
       size_t row_g = 0;
       for (size_t n = 0; n < num_local_nodes; ++n)
         for (size_t m = 0; m < static_cast<size_t>(num_moments); ++m, ++row_g)
         {
-          const size_t row_phi = n * (num_moments * num_groups) + m * num_groups + static_cast<size_t>(g);
+          const size_t row_phi =
+            n * (num_moments * num_groups) + m * num_groups + static_cast<size_t>(g);
           phi_new_local[row_phi] += cr * col_g->item(row_g);
         }
     }
@@ -495,9 +408,7 @@ ROMProblem::MIPOD(
 }
 
 double
-ROMProblem::MIPOD(
-  std::shared_ptr<CAROM::Matrix>& AU,
-  std::shared_ptr<CAROM::Matrix>& BU)
+ROMProblem::MIPOD(std::shared_ptr<CAROM::Matrix>& AU, std::shared_ptr<CAROM::Matrix>& BU)
 {
   // Br = AU^T * BU
   auto Br = AU->transposeMult(*BU);
@@ -520,8 +431,10 @@ ROMProblem::MIPOD(
   for (int i = 0; i < (int)eigen_pair.eigs.size(); ++i)
   {
     const auto& lam = eigen_pair.eigs[i];
-    if (std::abs(lam.imag()) > 1.0e-10) continue;
-    if (lam.real() <= 0.0) continue;
+    if (std::abs(lam.imag()) > 1.0e-10)
+      continue;
+    if (lam.real() <= 0.0)
+      continue;
     if (lam.real() > k_eff)
     {
       k_eff = lam.real();
@@ -542,7 +455,7 @@ ROMProblem::MIPOD(
     for (int r = 0; r < rom_rank; ++r)
     {
       const int cr_idx = g * rom_rank + r;
-      const double cr  = eigen_pair.ev_real->item(cr_idx, best_col);
+      const double cr = eigen_pair.ev_real->item(cr_idx, best_col);
 
       auto col_g = Ugs_[g]->getColumn(r);
       size_t row_g = 0;
@@ -558,21 +471,8 @@ ROMProblem::MIPOD(
   return k_eff;
 }
 
-
-
-/** Solves the reduced system and reconstructs the full-order flux moments.
- *
- * Solves Ar * c = rhs by explicit inversion (Ar^{-1} rhs), then reconstructs
- * the full-order local dof vector using the stored group-wise bases:
- *   phi_new += sum_{g,r} c_{g,r} * U_g(:,r) injected into full layout.
- *
- * \param Ar Reduced matrix (rom_dim x rom_dim).
- * \param rhs Reduced RHS vector (rom_dim).
- */
 void
-ROMProblem::SolveROM(
-  std::shared_ptr<CAROM::Matrix>& Ar,
-  std::shared_ptr<CAROM::Vector>& rhs)
+ROMProblem::SolveROM(std::shared_ptr<CAROM::Matrix>& Ar, std::shared_ptr<CAROM::Vector>& rhs)
 {
   auto Ar_inv = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
 
@@ -593,35 +493,23 @@ ROMProblem::SolveROM(
     for (int r = 0; r < rom_rank; ++r)
     {
       const int cr_idx = g * rom_rank + r;
-      const double cr  = (*c_vec)(cr_idx);
+      const double cr = (*c_vec)(cr_idx);
 
       auto col_g = Ugs_[g]->getColumn(r);
       size_t row_g = 0;
       for (size_t n = 0; n < num_local_nodes; ++n)
         for (size_t m = 0; m < static_cast<size_t>(num_moments); ++m, ++row_g)
         {
-          const size_t row_phi = n * (num_moments * num_groups) + m * num_groups + static_cast<size_t>(g);
+          const size_t row_phi =
+            n * (num_moments * num_groups) + m * num_groups + static_cast<size_t>(g);
           phi_new_local[row_phi] += cr * col_g->item(row_g);
         }
     }
   }
 }
 
-
-/** Solves the reduced k-eigenvalue problem and reconstructs the full-order state.
- *
- * Forms the reduced operator Ar^{-1} Br, computes its right eigenpairs,
- * selects the dominant positive real eigenvalue, and reconstructs the
- * associated full-order local flux moments using the stored group-wise bases.
- *
- * \param Ar Reduced loss/operator matrix.
- * \param Br Reduced production/operator matrix.
- * \return The dominant positive real eigenvalue.
- */
 double
-ROMProblem::SolveROM(
-  std::shared_ptr<CAROM::Matrix>& Ar,
-  std::shared_ptr<CAROM::Matrix>& Br)
+ROMProblem::SolveROM(std::shared_ptr<CAROM::Matrix>& Ar, std::shared_ptr<CAROM::Matrix>& Br)
 {
   auto Ar_inv = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
   auto Ar_inv_Br = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
@@ -638,8 +526,10 @@ ROMProblem::SolveROM(
   for (int i = 0; i < (int)eigen_pair.eigs.size(); ++i)
   {
     const auto& lam = eigen_pair.eigs[i];
-    if (std::abs(lam.imag()) > 1.0e-10) continue;
-    if (lam.real() <= 0.0) continue;
+    if (std::abs(lam.imag()) > 1.0e-10)
+      continue;
+    if (lam.real() <= 0.0)
+      continue;
     if (lam.real() > k_eff)
     {
       k_eff = lam.real();
@@ -663,7 +553,7 @@ ROMProblem::SolveROM(
     for (int r = 0; r < rom_rank; ++r)
     {
       const int cr_idx = g * rom_rank + r;
-      const double cr  = eigen_pair.ev_real->item(cr_idx, best_col);
+      const double cr = eigen_pair.ev_real->item(cr_idx, best_col);
 
       auto col_g = Ugs_[g]->getColumn(r);
       size_t row_g = 0;
@@ -679,15 +569,6 @@ ROMProblem::SolveROM(
   return k_eff;
 }
 
-/** Loads reduced matrices Ar and initializes the libROM matrix interpolator.
- *
- * One reduced matrix is read for each sampled parameter point. Identity
- * rotations are constructed, the closest sampled point to \p desired_point
- * is used as the reference index, and the interpolator is initialized for
- * subsequent online interpolation of Ar.
- *
- * \param desired_point Online parameter point used to choose the reference sample.
- */
 void
 ROMProblem::SetupArInterpolator(CAROM::Vector& desired_point)
 {
@@ -722,19 +603,9 @@ ROMProblem::SetupArInterpolator(CAROM::Vector& desired_point)
   int ref_index = getClosestPoint(param_points, desired_point);
 
   Ar_interp_obj_ptr_ = std::make_unique<CAROM::MatrixInterpolator>(
-    param_points, rotations, Ar_matrices,
-    ref_index, "SPD", "G", "LS", 0.999, false);
+    param_points, rotations, Ar_matrices, ref_index, "SPD", "G", "LS", 0.999, false);
 }
 
-/** Loads reduced RHS vectors and initializes the libROM vector interpolator.
- *
- * One reduced RHS vector is read for each sampled parameter point. Identity
- * rotations are constructed, the closest sampled point to \p desired_point
- * is used as the reference index, and the interpolator is initialized for
- * subsequent online interpolation of the reduced RHS.
- *
- * \param desired_point Online parameter point used to choose the reference sample.
- */
 void
 ROMProblem::SetupRHSrInterpolator(CAROM::Vector& desired_point)
 {
@@ -769,19 +640,9 @@ ROMProblem::SetupRHSrInterpolator(CAROM::Vector& desired_point)
   int ref_index = getClosestPoint(param_points, desired_point);
 
   rhs_interp_obj_ptr_ = std::make_unique<CAROM::VectorInterpolator>(
-    param_points, rotations, rhs_vectors,
-    ref_index, "G", "LS", 0.999, false);
+    param_points, rotations, rhs_vectors, ref_index, "G", "LS", 0.999, false);
 }
 
-/** Loads reduced matrices Br and initializes the libROM matrix interpolator.
- *
- * One reduced matrix is read for each sampled parameter point. Identity
- * rotations are constructed, the closest sampled point to \p desired_point
- * is used as the reference index, and the interpolator is initialized for
- * subsequent online interpolation of Br.
- *
- * \param desired_point Online parameter point used to choose the reference sample.
- */
 void
 ROMProblem::SetupBrInterpolator(CAROM::Vector& desired_point)
 {
@@ -816,76 +677,46 @@ ROMProblem::SetupBrInterpolator(CAROM::Vector& desired_point)
   int ref_index = getClosestPoint(param_points, desired_point);
 
   Br_interp_obj_ptr_ = std::make_unique<CAROM::MatrixInterpolator>(
-    param_points, rotations, Br_matrices,
-    ref_index, "R", "G", "LS", 0.999, false);
+    param_points, rotations, Br_matrices, ref_index, "R", "G", "LS", 0.999, false);
 }
 
-/** Interpolates Ar and rhs at a desired parameter point.
- *
- * Requires SetupArInterpolator() and SetupRHSrInterpolator() to have been called.
- *
- * \param desired_point Parameter at which to interpolate.
- * \param Ar_interp Output interpolated reduced matrix.
- * \param rhs_interp Output interpolated reduced RHS vector.
- */
-void 
-ROMProblem::InterpolateArAndRHSr(
-    CAROM::Vector& desired_point,
-    std::shared_ptr<CAROM::Matrix>& Ar_interp,
-    std::shared_ptr<CAROM::Vector>& rhs_interp)
+void
+ROMProblem::InterpolateArAndRHSr(CAROM::Vector& desired_point,
+                                 std::shared_ptr<CAROM::Matrix>& Ar_interp,
+                                 std::shared_ptr<CAROM::Vector>& rhs_interp)
 {
   Ar_interp = Ar_interp_obj_ptr_->interpolate(desired_point);
   rhs_interp = rhs_interp_obj_ptr_->interpolate(desired_point);
 }
 
-/** Interpolates Ar and Br at a desired parameter point.
- *
- * Requires SetupArInterpolator() and SetupBrInterpolator() to have been called.
- *
- * \param desired_point Parameter at which to interpolate.
- * \param Ar_interp Output interpolated reduced matrix.
- * \param Br_interp Output interpolated reduced production matrix.
- */
-void 
-ROMProblem::InterpolateArAndBr(
-    CAROM::Vector& desired_point,
-    std::shared_ptr<CAROM::Matrix>& Ar_interp,
-    std::shared_ptr<CAROM::Matrix>& Br_interp)
+void
+ROMProblem::InterpolateArAndBr(CAROM::Vector& desired_point,
+                               std::shared_ptr<CAROM::Matrix>& Ar_interp,
+                               std::shared_ptr<CAROM::Matrix>& Br_interp)
 {
   Ar_interp = Ar_interp_obj_ptr_->interpolate(desired_point);
   Br_interp = Br_interp_obj_ptr_->interpolate(desired_point);
 }
 
-/** Returns the schema for the nested `options` parameter block.
- *
- * The block controls ROM workflow phases and parameterization:
- * - phase: offline | merge | systems | online
- * - param_id: integer identifier for snapshot/system naming
- * - param_file: parameter matrix file path
- * - new_point: array specifying an online interpolation point
- */
 InputParameters
 ROMProblem::GetOptionsBlock()
 {
   InputParameters params;
 
   params.AddOptionalParameter("param_id", 0, "A parameter id for parametric problems.");
-  params.AddOptionalParameter("phase", "offline", "The phase (offline, online, systems, or merge) for ROM purposes.");
-  params.AddOptionalParameter("param_file", "", "A file containing an array of parameters for ROM.");
+  params.AddOptionalParameter(
+    "phase", "offline", "The phase (offline, online, systems, or merge) for ROM purposes.");
+  params.AddOptionalParameter(
+    "param_file", "", "A file containing an array of parameters for ROM.");
   params.AddOptionalParameterArray<double>("new_point", {0.0}, "New parameter point for ROM.");
-  params.AddOptionalParameter("take_sample", true, "Whether or not to use the result of the calculation as a snapshot.");
-  params.ConstrainParameterRange("phase", AllowableRangeList::New({"offline", "merge", "systems", "mipod", "online"}));
+  params.AddOptionalParameter(
+    "take_sample", true, "Whether or not to use the result of the calculation as a snapshot.");
+  params.ConstrainParameterRange(
+    "phase", AllowableRangeList::New({"offline", "merge", "systems", "mipod", "online"}));
 
   return params;
 }
 
-/** Parses and stores ROM options from an input block.
- *
- * Validates the provided block against GetOptionsBlock() and updates the internal
- * ROMOptions structure.
- *
- * \param input Parameter block containing ROM option values.
- */
 void
 ROMProblem::SetOptions(const InputParameters& input)
 {
@@ -901,14 +732,11 @@ ROMProblem::SetOptions(const InputParameters& input)
 
     else if (spec.GetName() == "phase")
     {
-      const std::map<std::string, Phase> phase_map =
-      {
-        {"offline", Phase::OFFLINE},
-        {"merge",   Phase::MERGE},
-        {"systems", Phase::SYSTEMS},
-        {"mipod",   Phase::MIPOD},
-        {"online",  Phase::ONLINE}
-      };
+      const std::map<std::string, Phase> phase_map = {{"offline", Phase::OFFLINE},
+                                                      {"merge", Phase::MERGE},
+                                                      {"systems", Phase::SYSTEMS},
+                                                      {"mipod", Phase::MIPOD},
+                                                      {"online", Phase::ONLINE}};
       const std::string phase_str = spec.GetValue<std::string>();
       auto it = phase_map.find(phase_str);
       options_.phase = it->second;
@@ -931,7 +759,7 @@ ROMProblem::SetOptions(const InputParameters& input)
     }
 
     else if (spec.GetName() == "take_sample")
-        options_.take_sample = spec.GetValue<bool>();
+      options_.take_sample = spec.GetValue<bool>();
 
   } // for p
 }

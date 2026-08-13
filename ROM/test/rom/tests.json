@@ -1,0 +1,88 @@
+[
+  {
+    "file": "reed_full.py",
+    "comment": "Parallel one-group source-driven full ROM and MI-POD pipeline",
+    "num_procs": 1,
+    "weight_class": "long",
+    "checks": [
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_REED_REL_ERROR=",
+        "goldvalue": 0.004205686462714711,
+        "abs_tol": 1.0e-3
+      },
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_REED_MIPOD_OK=",
+        "goldvalue": 1.0,
+        "abs_tol": 0.0
+      }
+    ]
+  },
+  {
+    "file": "checkerboard_2g_full.py",
+    "comment": "Parallel 2D multigroup source-driven ROM and MI-POD pipeline",
+    "num_procs": 1,
+    "weight_class": "intermediate",
+    "checks": [
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_CHECKERBOARD_2G_REL_ERROR=",
+        "goldvalue": 6.571769834908479e-6,
+        "abs_tol": 1.0e-5
+      },
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_CHECKERBOARD_2G_MIPOD_OK=",
+        "goldvalue": 1.0,
+        "abs_tol": 0.0
+      }
+    ]
+  },
+  {
+    "file": "p58_active_subspace.py",
+    "comment": "Serial multigroup PI active-subspace pipeline with OMMI-POD and MI-POD",
+    "num_procs": 1,
+    "weight_class": "long",
+    "checks": [
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_P58_PI_OMMI_K_REL_ERROR=",
+        "goldvalue": 0.0011285396914592725,
+        "abs_tol": 1.0e-2
+      },
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_P58_PI_OMMI_FLUX_REL_ERROR=",
+        "goldvalue": 0.0009472968851897239,
+        "abs_tol": 1.0e-3
+      },
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_P58_PI_MIPOD_K_REL_ERROR=",
+        "goldvalue": 6.305417948322462e-9,
+        "abs_tol": 1.0e-8
+      },
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_P58_PI_MIPOD_FLUX_REL_ERROR=",
+        "goldvalue": 8.925144396116109e-9,
+        "abs_tol": 1.0e-8
+      }
+    ]
+  },
+  {
+    "file": "p58_nlke.py",
+    "comment": "Serial multigroup NLKE pipeline with OMMI-POD and MI-POD",
+    "num_procs": 1,
+    "weight_class": "long",
+    "checks": [
+      {
+        "type": "KeyValuePair",
+        "key": "ROM_P58_NLKE_MIPOD_FLUX_REL_ERROR=",
+        "goldvalue": 1.948089406266461e-9,
+        "abs_tol": 1.0e-8
+      }
+    ]
+  }
+]

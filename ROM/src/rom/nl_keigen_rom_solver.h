@@ -21,13 +21,18 @@ protected:
   bool initialized_ = false;
 
 public:
+  /** Constructs a nonlinear k-eigenvalue ROM solver. */
   explicit NLKEigenROMSolver(const InputParameters& params);
 
+  /** Initializes the underlying nonlinear k-eigenvalue solver. */
   void Initialize() override;
+  /** Executes the selected offline, merge, systems, MI-POD, or online ROM phase. */
   void Execute() override;
 
+  /** Returns the most recently computed eigenvalue. */
   double GetEigenvalue() const;
 
+  /** Returns the input-parameter schema for NLKEigenROMSolver. */
   static InputParameters GetInputParameters();
 };
 

@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""P58 k-eigenvalue gradient deck for active-subspace offline data.
-
-This deck accepts the same global inputs used by base_P58.py.  For an
-``offline`` run, it solves the forward k-eigenvalue problem, solves the
-corresponding adjoint problem, evaluates dk/dp for the eight P58 parameters,
-and writes the gradient row to ``data/gradients_<pid>.txt``.
-"""
-
 import os
 import numpy as np
 
@@ -59,7 +51,7 @@ if __name__ == "__main__":
         print("{} phase".format(run_phase))
 
     widths = [4.6, 1.126152]
-    nrefs = [500, 500]
+    nrefs = [8, 4] if globals().get("test_mode", False) else [500, 500]
     nodes = [0.0]
     for imat in range(len(widths)):
         dx = widths[imat] / nrefs[imat]
@@ -82,7 +74,7 @@ if __name__ == "__main__":
     fissile = MultiGroupXS()
     fissile.LoadFromOpenSn("data/URRb.xs")
 
-    n_angles = 128
+    n_angles = 8 if globals().get("test_mode", False) else 128
     scat_order = 0
     pquad = GLProductQuadrature1DSlab(n_polar=n_angles, scattering_order=scat_order)
 
@@ -176,13 +168,23 @@ if __name__ == "__main__":
             "block_ids": [1],
         }
 
-        gradient = np.zeros(6)
+        gradient = np.zeros(8)
 
-        # Parameters 0-1: sigma_f[g].  The postprocessor's production
-        # sensitivity gives dk/dsigma_f[g] because it internally multiplies
-        # by nu = nu_sigma_f / sigma_f when relative=False.
+        # Parameters 0-1 are sigma_f[g]. Changing sigma_f changes both the
+        # production operator and sigma_t, so its derivative contains both
+        # contributions. Parameters 2-3 are capture cross sections and affect
+        # only sigma_t.
         for g in range(num_groups):
-            gradient[g] = _keigen_scaled_sensitivity(
+            total_sensitivity = _keigen_scaled_sensitivity(
+                phys,
+                k_eff,
+                {
+                    "sensitivity_type": "sigma_t",
+                    "group": g,
+                    **common_psi,
+                },
+            )
+            production_sensitivity = _keigen_scaled_sensitivity(
                 phys,
                 k_eff,
                 {
@@ -191,12 +193,14 @@ if __name__ == "__main__":
                     **common_phi,
                 },
             )
+            gradient[g] = production_sensitivity + total_sensitivity
+            gradient[2 + g] = total_sensitivity
 
         # Parameters 4-7: zeroth-moment transfer entries S[from_group,to_group]
         # in the same order used by P58Problem.bounds and URRb_base.txt.
         scatter_pairs = [(0, 0), (0, 1), (1, 0), (1, 1)]
         for j, (from_group, to_group) in enumerate(scatter_pairs):
-            gradient[2 + j] = _keigen_scaled_sensitivity(
+            gradient[4 + j] = _keigen_scaled_sensitivity(
                 phys,
                 k_eff,
                 {
@@ -212,4 +216,4 @@ if __name__ == "__main__":
             os.makedirs("data", exist_ok=True)
             os.makedirs("output", exist_ok=True)
             np.savetxt("data/gradients_{}.txt".format(param_id), gradient[None, :])
-            np.savetxt("output/fom_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])
+            np.savetxt("output/fom_k_{}.txt".format(param_id), [k_solver.GetEigenvalue()])

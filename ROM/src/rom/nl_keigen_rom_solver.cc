@@ -64,7 +64,8 @@ NLKEigenROMSolver::Execute()
 
     if (opensn::mpi_comm.rank() == 0)
     {
-      std::ofstream outfile("results/offline_time_" + std::to_string(rom_options.param_id) + ".txt");
+      std::ofstream outfile("results/offline_time_" + std::to_string(rom_options.param_id) +
+                            ".txt");
       if (outfile.is_open())
         outfile << elapsed.count() << std::endl;
     }
@@ -84,10 +85,8 @@ NLKEigenROMSolver::Execute()
     rom_problem_->LoadUgs();
     std::shared_ptr<CAROM::Matrix> BU_ = rom_problem_->AssembleBU();
 
-    const std::string Ar_filename =
-      "data/rom_system_Ar_" + std::to_string(rom_options.param_id);
-    const std::string Br_filename =
-      "data/rom_system_Br_" + std::to_string(rom_options.param_id);
+    const std::string Ar_filename = "data/rom_system_Ar_" + std::to_string(rom_options.param_id);
+    const std::string Br_filename = "data/rom_system_Br_" + std::to_string(rom_options.param_id);
 
     rom_problem_->AssembleROM(AU_, BU_, Ar_filename, Br_filename);
   }

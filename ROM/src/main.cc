@@ -4,7 +4,8 @@
 #include "rom_py_app.h"
 #include "petsc.h"
 
-int main(int argc, char** argv)
+int
+main(int argc, char** argv)
 {
   mpi::Environment env(argc, argv);
 

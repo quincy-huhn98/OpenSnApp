@@ -15,13 +15,13 @@ namespace opensn
 namespace py = pybind11;
 
 template <class T>
-static InputParameters KwargsToParams(const py::kwargs& kw)
+static InputParameters
+KwargsToParams(const py::kwargs& kw)
 {
   auto params = T::GetInputParameters();
   params.AssignParameters(kwargs_to_param_block(kw));
   return params;
 }
-
 
 // clang-format off
 void WrapROM(py::module& m)
@@ -243,8 +243,8 @@ void WrapROM(py::module& m)
 }
 // clang-format on
 
-
-void py_rom(py::module& pyopensn)
+void
+py_rom(py::module& pyopensn)
 {
   auto rom = pyopensn.def_submodule("rom", "ROM module.");
   WrapROM(rom);

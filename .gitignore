@@ -68,3 +68,5 @@ examples/*/basis/*
 examples/*/data/*
 examples/*/output/*
 examples/*/results/*
+ROM/test/work/
+ROM/test/rom/out/

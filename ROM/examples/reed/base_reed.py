@@ -15,23 +15,19 @@ if "opensn_console" not in globals():
     from pyopensn.xs import MultiGroupXS
     from pyopensn.source import VolumetricSource
     from pyopensn.aquad import GLProductQuadrature1DSlab
-    from pyopensn.solver import DiscreteOrdinatesProblem, SteadyStateSolver
+    from pyopensn.solver import DiscreteOrdinatesProblem
     from pyopensn.logvol import RPPLogicalVolume
     from pyopensn.rom import ROMProblem, SteadyStateROMSolver
 
 if __name__ == "__main__":
 
-    try:
-        print("Parameter id = {}".format(pid))
-    except:
-        p_id=0
-        print("Parameter id = {}".format(pid))
+    print("Parameter id = {}".format(pid))
 
     print("{} phase".format(phase))
-    
+
     # Create Mesh
     widths = [2., 1., 2., 1., 2.]
-    nrefs = [200, 200, 200, 200, 200]
+    nrefs = [4, 4, 4, 4, 4] if globals().get("test_mode", False) else [200] * 5
     Nmat = len(widths)
     nodes = [0.]
     for imat in range(Nmat):
@@ -67,7 +63,8 @@ if __name__ == "__main__":
     src1 = VolumetricSource(block_ids=[3], group_strength=[p1])
 
     # Angular Quadrature
-    gl_quad = GLProductQuadrature1DSlab(n_polar=128, scattering_order=0)
+    n_polar = 8 if globals().get("test_mode", False) else 128
+    gl_quad = GLProductQuadrature1DSlab(n_polar=n_polar, scattering_order=0)
 
     # LBS block option
     num_groups = 1
@@ -86,41 +83,36 @@ if __name__ == "__main__":
             },
         ],
         xs_map=xs_map,
-        volumetric_sources= [src0, src1],
-        boundary_conditions= [
-                    {"name": "zmin", "type": "vacuum"},
-                    {"name": "zmax", "type": "vacuum"}
-        ]         
+        volumetric_sources=[src0, src1],
+        boundary_conditions=[
+            {"name": "zmin", "type": "vacuum"},
+            {"name": "zmax", "type": "vacuum"}
+        ]
     )
 
     if phase == "online":
         rom_options = {
-                "param_id": pid,
-                "phase": phase,
-                "param_file": "data/params.txt",
-                "new_point": [p0, p1]
-            }
+            "param_id": pid,
+            "phase": phase,
+            "param_file": "data/params.txt",
+            "new_point": [p0, p1]
+        }
     else:
         rom_options = {
-                "param_id": pid,
-                "phase": phase
-            }
+            "param_id": pid,
+            "phase": phase
+        }
 
-    rom = ROMProblem(problem=phys,options=rom_options)
+    rom = ROMProblem(problem=phys, options=rom_options)
 
     # Initialize and execute solver
     ss_solver = SteadyStateROMSolver(problem=phys, rom_problem=rom)
     ss_solver.Initialize()
     ss_solver.Execute()
 
-    try:
-        if phase == "online" and saveh5:
-            phys.WriteFluxMoments("output/rom_{}_".format(pid))
-        if phase == "offline" and saveh5:
-            phys.WriteFluxMoments("output/fom_{}_".format(pid))
-    except:
-        if phase == "online":
-            phys.WriteFluxMoments("output/rom")
-        if phase == "offline":
-            phys.WriteFluxMoments("output/fom")
-
+    if phase == "online" and saveh5:
+        phys.WriteFluxMoments("output/rom_{}_".format(pid))
+    if phase == "mipod" and saveh5:
+        phys.WriteFluxMoments("output/mipod_{}_".format(pid))
+    if phase == "offline" and saveh5:
+        phys.WriteFluxMoments("output/fom_{}_".format(pid))

@@ -7,13 +7,14 @@ from xs import CrossSections
 
 
 class CheckerboardProblem2G:
-    def __init__(self, workdir, nprocs=4, ntrain=100, ntest=10):
+    def __init__(self, workdir, nprocs=4, ntrain=100, ntest=10, random_seed=None):
         self.workdir = Path(workdir)
         self.deck_path = self.workdir / "base_2gcheckerboard.py"
 
         self.nprocs = nprocs
         self.ntrain = ntrain
         self.ntest = ntest
+        self.rng = np.random.default_rng(random_seed)
 
         self.xs = CrossSections(
             [
@@ -79,13 +80,17 @@ class CheckerboardProblem2G:
         return full_sample
 
     def sample_training(self):
-        self.training_set = utils.sample_parameter_space(self.bounds, self.ntrain)
+        self.training_set = utils.sample_parameter_space(
+            self.bounds, self.ntrain, rng=self.rng
+        )
 
         params_path = self.workdir / "data" / "params.txt"
         np.savetxt(str(params_path), self.training_set)
 
     def sample_testing(self):
-        self.testing_set = utils.sample_test(self.bounds, self.ntest)
+        self.testing_set = utils.sample_test(
+            self.bounds, self.ntest, rng=self.rng
+        )
 
         params_path = self.workdir / "data" / "test_params.txt"
         np.savetxt(str(params_path), self.testing_set)
@@ -93,10 +98,12 @@ class CheckerboardProblem2G:
     def update_xs(self, pvec):
         self.xs.write_sample(self._build_full_sample(pvec))
 
-    def plot_results(self):
+    def plot_results(self, include_mipod=False):
         plotting.plot_sv(num_groups=2)
         errors = []
         speedups = []
+        mipod_errors = []
+        mipod_speedups = []
         for i in range(self.ntest):
             results_dir = self.workdir / "results"
             rom_time = np.loadtxt(str(results_dir / "online_time_{}.txt".format(i)))
@@ -105,23 +112,47 @@ class CheckerboardProblem2G:
             output_dir = self.workdir / "output"
             plotting.plot_2d_flux(
                 str(output_dir / ("fom_{}_".format(i) + "{}.h5")),
-                ranks=range(4),
+                ranks=range(self.nprocs),
                 prefix="fom",
                 pid=i,
             )
             plotting.plot_2d_flux(
                 str(output_dir / ("rom_{}_".format(i) + "{}.h5")),
-                ranks=range(4),
+                ranks=range(self.nprocs),
                 prefix="rom",
                 pid=i,
             )
 
-            error = plotting.plot_2d_lineout(output_dir, ranks=range(4), pid=i)
+            error = plotting.plot_2d_lineout(output_dir, ranks=range(self.nprocs), pid=i)
 
             errors.append(error)
             speedups.append(fom_time / rom_time)
+
+            if include_mipod:
+                mipod_time = np.loadtxt(
+                    str(results_dir / "mipod_time_{}.txt".format(i))
+                )
+                plotting.plot_2d_flux(
+                    str(output_dir / ("mipod_{}_".format(i) + "{}.h5")),
+                    ranks=range(self.nprocs),
+                    prefix="mipod",
+                    pid=i,
+                )
+                mipod_error = plotting.plot_2d_lineout(
+                    output_dir,
+                    ranks=range(self.nprocs),
+                    pid=i,
+                    rom_prefix="mipod",
+                )
+                mipod_errors.append(mipod_error)
+                mipod_speedups.append(fom_time / mipod_time)
 
         print("Avg Error ", np.mean(errors))
         np.savetxt(str(results_dir / "errors.txt"), errors)
         print("Avg Speedup ", np.mean(speedups))
         np.savetxt(str(results_dir / "speedups.txt"), speedups)
+        if include_mipod:
+            print("Avg MI-POD Error ", np.mean(mipod_errors))
+            np.savetxt(str(results_dir / "mipod_errors.txt"), mipod_errors)
+            print("Avg MI-POD Speedup ", np.mean(mipod_speedups))
+            np.savetxt(str(results_dir / "mipod_speedups.txt"), mipod_speedups)

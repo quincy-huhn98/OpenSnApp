@@ -90,13 +90,6 @@ class CrossSections:
     def get_nominal_sample(self):
         return np.concatenate([block["x_nominal"] for block in self.blocks])
 
-    def random_sample(self, rng=None):
-        if rng is None:
-            rng = np.random.default_rng()
-
-        vals = [rng.uniform(lo, hi) for (lo, hi) in self.bounds]
-        return np.asarray(vals, dtype=float)
-
     def get_block(self, in_file):
         in_file = Path(in_file)
         for block in self.blocks:

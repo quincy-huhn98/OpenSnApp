@@ -1,15 +1,16 @@
 # run_rom_checkerboard.py
+from rom_driver import run_pipeline_1g
+from checkerboard_problem import CheckerboardProblem
+from job_manager import JobManager
 from pathlib import Path
 import argparse
-import os, sys
+import os
+import sys
 
 python_root = os.environ.get("OPENSN_PYTHON_PATH")
 if python_root:
     sys.path.insert(0, python_root)
 
-from job_manager import JobManager
-from checkerboard_problem import CheckerboardProblem
-from rom_driver import run_pipeline_1g
 
 def main():
     ap = argparse.ArgumentParser()
@@ -19,26 +20,29 @@ def main():
         default=None,
         help="OpenSn application executable (e.g. opensn, ./opensn, path/to/app)",
     )
-    ap.add_argument(
-        "--system",
-        type=str,
-        default="auto",
-        help="Execution system: auto, slurm, local, etc.",
-    )
+    ap.add_argument("--nprocs", type=int, default=4)
+    ap.add_argument("--ntrain", type=int, default=100)
+    ap.add_argument("--ntest", type=int, default=10)
+    ap.add_argument("--five-param", action="store_true")
+    ap.add_argument("--mipod", action="store_true", help="Run optional MIPOD testing.")
     args = ap.parse_args()
 
-    repo_root = Path.cwd()
+    example_root = Path(__file__).resolve().parent
+    os.chdir(example_root)
 
     # Pass executable into the JobManager
-    jm = JobManager(
-        system=args.system,
-        opensn_exe=args.exe,
+    jm = JobManager(opensn_exe=args.exe)
+
+    problem = CheckerboardProblem(
+        example_root,
+        five_param=args.five_param,
+        nprocs=args.nprocs,
+        ntrain=args.ntrain,
+        ntest=args.ntest,
     )
 
-    problem = CheckerboardProblem(repo_root)
-
-    run_pipeline_1g(problem, repo_root, jm)
-    problem.plot_results()
+    run_pipeline_1g(problem, example_root, jm, run_mipod=args.mipod)
+    problem.plot_results(include_mipod=args.mipod)
 
 
 if __name__ == "__main__":

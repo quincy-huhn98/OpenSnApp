@@ -13,12 +13,6 @@
 namespace opensn
 {
 
-
-/** Returns the input-parameter schema for SteadyStateROMSolver.
- *
- * Extends the steady-state source solver schema with:
- * - `rom_problem` : an existing ROMProblem instance that manages ROM workflow.
- */
 InputParameters
 SteadyStateROMSolver::GetInputParameters()
 {
@@ -31,9 +25,9 @@ SteadyStateROMSolver::GetInputParameters()
 }
 
 SteadyStateROMSolver::SteadyStateROMSolver(const InputParameters& params)
-  : SteadyStateSourceSolver(params), 
-  lbs_problem_(params.GetSharedPtrParam<Problem, DiscreteOrdinatesProblem>("problem")), 
-  rom_problem_(params.GetSharedPtrParam<Problem, ROMProblem>("rom_problem"))
+  : SteadyStateSourceSolver(params),
+    lbs_problem_(params.GetSharedPtrParam<Problem, DiscreteOrdinatesProblem>("problem")),
+    rom_problem_(params.GetSharedPtrParam<Problem, ROMProblem>("rom_problem"))
 {
 }
 
@@ -42,14 +36,6 @@ SteadyStateROMSolver::Initialize()
 {
 }
 
-/** Executes the requested ROM workflow phase for the steady-state solver.
- *
- * Supported phases are:
- * - OFFLINE : solves the full-order system and writes snapshots,
- * - MERGE   : builds the reduced bases from stored snapshots,
- * - SYSTEMS : assembles and writes reduced operators,
- * - ONLINE  : interpolates and solves the reduced system.
- */
 void
 SteadyStateROMSolver::Execute()
 {
@@ -67,9 +53,11 @@ SteadyStateROMSolver::Execute()
     std::chrono::duration<double, std::milli> elapsed = end - start;
     if (opensn::mpi_comm.rank() == 0)
     {
-      std::ofstream outfile("results/offline_time_" + std::to_string(rom_options.param_id) + ".txt");
-      if (outfile.is_open()) {
-        outfile << elapsed.count() <<std::endl;
+      std::ofstream outfile("results/offline_time_" + std::to_string(rom_options.param_id) +
+                            ".txt");
+      if (outfile.is_open())
+      {
+        outfile << elapsed.count() << std::endl;
         outfile.close();
       }
     }
@@ -90,6 +78,24 @@ SteadyStateROMSolver::Execute()
     const std::string& rhs_filename = "data/rom_system_br_" + std::to_string(rom_options.param_id);
     rom_problem_->AssembleROM(AU_, b_, Ar_filename, rhs_filename);
   }
+  if (rom_options.phase == Phase::MIPOD)
+  {
+    rom_problem_->LoadUgs();
+
+    auto start = std::chrono::high_resolution_clock::now();
+    std::shared_ptr<CAROM::Matrix> AU = rom_problem_->AssembleAU();
+    std::shared_ptr<CAROM::Vector> rhs = rom_problem_->AssembleRHS();
+    rom_problem_->MIPOD(AU, rhs);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double, std::milli> elapsed = end - start;
+    if (opensn::mpi_comm.rank() == 0)
+    {
+      std::ofstream outfile("results/mipod_time_" + std::to_string(rom_options.param_id) + ".txt");
+      if (outfile.is_open())
+        outfile << elapsed.count() << std::endl;
+    }
+  }
   if (rom_options.phase == Phase::ONLINE)
   {
     rom_problem_->ReadParamMatrix(rom_options.param_file);
@@ -104,16 +110,16 @@ SteadyStateROMSolver::Execute()
 
     rom_problem_->InterpolateArAndRHSr(*rom_options.new_point, Ar_interp, rhs_interp);
     rom_problem_->SolveROM(Ar_interp, rhs_interp);
-    
+
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> elapsed = end - start;
 
     if (opensn::mpi_comm.rank() == 0)
     {
       std::ofstream outfile("results/online_time_" + std::to_string(rom_options.param_id) + ".txt");
-      if (outfile.is_open()) 
+      if (outfile.is_open())
       {
-        outfile << elapsed.count() <<std::endl;
+        outfile << elapsed.count() << std::endl;
         outfile.close();
       }
     }

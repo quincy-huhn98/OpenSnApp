@@ -31,6 +31,10 @@ def make_opensn_args(phase, pid, pvec, save_h5=False):
 
 def _run_one(problem, jm, workdir, phase, pid, pvec=None, save_h5=False, deck=None):
     opensn_args = make_opensn_args(phase, pid, pvec, save_h5)
+    if getattr(problem, "test_mode", False):
+        opensn_args.extend(["-p", "test_mode=True"])
+    if getattr(problem, "use_nlke", False):
+        opensn_args.extend(["-p", "use_nlke=True"])
 
     jm.run(
         input_file=str(deck if deck is not None else problem.deck_path),
@@ -38,6 +42,7 @@ def _run_one(problem, jm, workdir, phase, pid, pvec=None, save_h5=False, deck=No
         workdir=str(workdir),
         opensn_args=opensn_args,
         stream_output=True,
+        check=True,
     )
 
 
@@ -83,12 +88,12 @@ def _problem_bounds(problem):
     return np.asarray(problem.xs.bounds, dtype=float)
 
 
-def _sample_physical_lhs(bounds, n_samples):
+def _sample_physical_lhs(bounds, n_samples, seed=None):
     bounds = np.asarray(bounds, dtype=float)
     if n_samples < 1:
         raise ValueError("n_samples must be positive.")
 
-    sampler = qmc.LatinHypercube(d=bounds.shape[0])
+    sampler = qmc.LatinHypercube(d=bounds.shape[0], seed=seed)
     u = sampler.random(n_samples)
     return qmc.scale(u, bounds[:, 0], bounds[:, 1])
 
@@ -122,6 +127,7 @@ def _save_active_parameter_files(problem, physical_training, active_training):
     np.savetxt(data_dir / "params.txt", physical_training)
     np.savetxt(data_dir / "params_AS.txt", active_training)
 
+
 def _load_active_subspace(problem, bounds, active_rank):
     active_subspace = ActiveSubspace(bounds)
 
@@ -139,21 +145,30 @@ def _load_active_subspace(problem, bounds, active_rank):
     active_subspace.set_rank(active_rank)
     return active_subspace
 
+
 def run_active_subspace_pipeline(
     problem,
     repo_root,
     jm,
     n_gradients,
     active_rank=1,
-    systems_restart=0
+    systems_restart=False,
+    run_mipod=False,
+    random_seed=None,
 ):
     paths = ensure_problem_dirs(Path(repo_root))
+    if hasattr(problem, "prepare_inputs"):
+        problem.prepare_inputs()
     bounds = _problem_bounds(problem)
 
     ntrain = int(problem.ntrain)
     ntest = int(problem.ntest)
     n_grad = int(n_gradients)
-    if systems_restart > 0:
+    seed_sequence = np.random.SeedSequence(random_seed)
+    gradient_seed, training_seed, testing_seed = (
+        int(seed.generate_state(1)[0]) for seed in seed_sequence.spawn(3)
+    )
+    if systems_restart:
         problem.load_training()
         _run_one(
             problem,
@@ -181,7 +196,7 @@ def run_active_subspace_pipeline(
         if active_rank < 1 or active_rank > bounds.shape[0]:
             raise ValueError("active_rank must be between 1 and the number of parameters.")
 
-        grad_points = _sample_physical_lhs(bounds, n_grad)
+        grad_points = _sample_physical_lhs(bounds, n_grad, seed=gradient_seed)
         np.savetxt(problem.workdir / "data" / "gradient_params.txt", grad_points)
 
         print(f"[AS] Running gradients for {n_grad} samples")
@@ -199,8 +214,8 @@ def run_active_subspace_pipeline(
         physical_training, active_training, _ = active_subspace.make_active_training_set(
             ntrain,
             method="lhs",
-            inactive_scale=0.0,
             reject_outside=True,
+            seed=training_seed,
         )
 
         problem.training_set = physical_training
@@ -220,13 +235,12 @@ def run_active_subspace_pipeline(
 
         _run_many(problem, jm, paths["root"], "systems", problem.training_set)
 
-
     print(f"[AS] Sampling {ntest} active-subspace testing points")
     physical_testing, active_testing, _ = active_subspace.make_active_training_set(
         ntest,
         method="lhs",
-        inactive_scale=0.0,
         reject_outside=True,
+        seed=testing_seed,
     )
 
     problem.testing_set = physical_testing
@@ -234,7 +248,8 @@ def run_active_subspace_pipeline(
     np.savetxt(problem.workdir / "data" / "test_params_AS.txt", active_testing)
 
     _run_many(problem, jm, paths["root"], "offline", problem.testing_set, save_h5=True)
-    _run_many(problem, jm, paths["root"], "mipod", problem.testing_set, save_h5=True)
+    if run_mipod:
+        _run_many(problem, jm, paths["root"], "mipod", problem.testing_set, save_h5=True)
 
     _run_many_with_interpolation_points(
         problem,
@@ -247,10 +262,12 @@ def run_active_subspace_pipeline(
     )
 
 
-def run_pipeline(problem, repo_root, jm, systems_restart=0):
+def run_pipeline(problem, repo_root, jm, systems_restart=False, run_mipod=False):
     paths = ensure_problem_dirs(Path(repo_root))
+    if hasattr(problem, "prepare_inputs"):
+        problem.prepare_inputs()
 
-    if systems_restart > 0:
+    if systems_restart:
         problem.load_training()
 
         _run_one(
@@ -262,7 +279,8 @@ def run_pipeline(problem, repo_root, jm, systems_restart=0):
             pvec=np.ones_like(problem.training_set[0]),
         )
 
-        _run_many(problem, jm, paths["root"], "systems", problem.training_set)#, start_pid=systems_restart)
+        # , start_pid=systems_restart)
+        _run_many(problem, jm, paths["root"], "systems", problem.training_set)
     else:
         problem.sample_training()
 
@@ -276,22 +294,25 @@ def run_pipeline(problem, repo_root, jm, systems_restart=0):
             pid=problem.ntrain,
             pvec=np.ones_like(problem.training_set[0]),
         )
-        
+
         _run_many(problem, jm, paths["root"], "systems", problem.training_set)
 
     problem.sample_testing()
 
     _run_many(problem, jm, paths["root"], "offline", problem.testing_set, save_h5=True)
-    _run_many(problem, jm, paths["root"], "mipod", problem.testing_set, save_h5=True)
+    if run_mipod:
+        _run_many(problem, jm, paths["root"], "mipod", problem.testing_set, save_h5=True)
     _run_many(problem, jm, paths["root"], "online", problem.testing_set, save_h5=True)
 
+
 def _run_many_1g(problem, jm, workdir, phase, dataset, save_h5=False):
-    """Runs each single group problem in dataset using the commandline arguments to update cross sections"""
+    """Run each single-group problem with command-line cross-section updates."""
     for pid, pvec in enumerate(dataset):
         _run_one(problem, jm, workdir, phase=phase, pid=pid, pvec=pvec, save_h5=save_h5)
 
-def run_pipeline_1g(problem, repo_root, jm):
-    """Runs each ROM phase in sequence using _run_many_1g so that cross sections are passed to the input file"""
+
+def run_pipeline_1g(problem, repo_root, jm, run_mipod=False):
+    """Run each ROM phase while passing cross sections to the input file."""
     paths = ensure_problem_dirs(Path(repo_root))
 
     problem.sample_training()
@@ -300,7 +321,14 @@ def run_pipeline_1g(problem, repo_root, jm):
     _run_many_1g(problem, jm, workdir=paths["root"], phase="offline", dataset=problem.training_set)
 
     # MERGE
-    _run_one(problem, jm, workdir=paths["root"], phase="merge", pid=problem.ntrain - 1, pvec=np.ones_like(problem.training_set[0]))
+    _run_one(
+        problem,
+        jm,
+        workdir=paths["root"],
+        phase="merge",
+        pid=problem.ntrain,
+        pvec=np.ones_like(
+            problem.training_set[0]))
 
     # SYSTEMS
     _run_many_1g(problem, jm, workdir=paths["root"], phase="systems", dataset=problem.training_set)
@@ -308,7 +336,29 @@ def run_pipeline_1g(problem, repo_root, jm):
     problem.sample_testing()
 
     # OFFLINE testing (save HDF5)
-    _run_many_1g(problem, jm, workdir=paths["root"], phase="offline", dataset=problem.testing_set, save_h5=True)
+    _run_many_1g(
+        problem,
+        jm,
+        workdir=paths["root"],
+        phase="offline",
+        dataset=problem.testing_set,
+        save_h5=True)
+
+    # Optional minimally invasive POD testing (save HDF5)
+    if run_mipod:
+        _run_many_1g(
+            problem,
+            jm,
+            workdir=paths["root"],
+            phase="mipod",
+            dataset=problem.testing_set,
+            save_h5=True)
 
     # ONLINE testing (save HDF5)
-    _run_many_1g(problem, jm, workdir=paths["root"], phase="online",  dataset=problem.testing_set, save_h5=True)
+    _run_many_1g(
+        problem,
+        jm,
+        workdir=paths["root"],
+        phase="online",
+        dataset=problem.testing_set,
+        save_h5=True)

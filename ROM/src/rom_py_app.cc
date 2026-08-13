@@ -10,8 +10,7 @@ using namespace opensn;
 namespace rompy
 {
 
-ROMApp::ROMApp(const mpi::Communicator& comm)
-  : opensnpy::PyApp(comm)
+ROMApp::ROMApp(const mpi::Communicator& comm) : opensnpy::PyApp(comm)
 {
   opensnpy::console.BindModule(WrapROM);
 }
