@@ -34,7 +34,7 @@ ROMProblem::GetInputParameters()
 
   // Optional nested ROM options block (phase, ids, files, new_point, etc.)
   params.AddOptionalParameterBlock(
-      "options", ParameterBlock(), "ROM control options (phase, param_id, param_file, new_point, …)");
+      "options", ParameterBlock(), "ROM control options (phase, param_id, param_file, new_point, take_sample)");
 
   return params;
 }
@@ -873,6 +873,7 @@ ROMProblem::GetOptionsBlock()
   params.AddOptionalParameter("phase", "offline", "The phase (offline, online, systems, or merge) for ROM purposes.");
   params.AddOptionalParameter("param_file", "", "A file containing an array of parameters for ROM.");
   params.AddOptionalParameterArray<double>("new_point", {0.0}, "New parameter point for ROM.");
+  params.AddOptionalParameter("take_sample", true, "Whether or not to use the result of the calculation as a snapshot.");
   params.ConstrainParameterRange("phase", AllowableRangeList::New({"offline", "merge", "systems", "mipod", "online"}));
 
   return params;
@@ -928,6 +929,10 @@ ROMProblem::SetOptions(const InputParameters& input)
       for (int i = 0; i < static_cast<int>(vals.size()); ++i)
         (*(options_.new_point))(i) = vals[static_cast<size_t>(i)];
     }
+
+    else if (spec.GetName() == "take_sample")
+        options_.take_sample = spec.GetValue<bool>();
+
   } // for p
 }
 

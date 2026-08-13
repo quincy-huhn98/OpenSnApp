@@ -77,8 +77,8 @@ PowerIterationKEigenROMSolver::Execute()
         outfile.close();
       }
     }
-
-    rom_problem_->TakeSample(rom_options.param_id);
+    if (rom_options.take_sample)
+        rom_problem_->TakeSample(rom_options.param_id);
   }
   if (rom_options.phase == Phase::MERGE)
   {

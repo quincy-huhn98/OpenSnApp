@@ -9,17 +9,22 @@ class CrossSections:
     Modes
     -----
     param_mode="entrywise"
-        Original behavior:
+        Parameterize each selected cross-section entry directly:
           - total XS:   [sigma_a_vec, transfer_vals]
-          - fission XS: [sigma_f_vec, sigma_c_vec, transfer_vals]
+          - fission XS: [sigma_f_vec, transfer_vals]
+
+        For fission XS files, the capture cross section sigma_c is held fixed
+        at its base-file value. The total cross section is recomputed as
+
+            sigma_t[g] = sigma_f[g] + sigma_c_base[g] + sum_gto S[g,gto].
 
     param_mode="block_scales"
         Sample multiplicative scale factors instead of every individual entry:
           - total XS:   [sigma_a_scale, scatter_scale]
-          - fission XS: [sigma_f_scale, sigma_c_scale, scatter_scale]
+          - fission XS: [sigma_f_scale, scatter_scale]
 
-        Each scale multiplies the entire corresponding block.
-        For example, sigma_f_scale multiplies all group values in sigma_f.
+        For fission XS files, sigma_c remains fixed while sigma_f and the
+        zeroth-moment transfer entries are scaled.
     """
 
     def __init__(self, xs_specs, frac=0.2, transfer_tol=0.0, param_mode="entrywise"):
@@ -349,7 +354,7 @@ class CrossSections:
         return np.concatenate([data["sigma_a_vec"], data["transfer_vals"]])
 
     def _flatten_fission_data(self, data):
-        return np.concatenate([data["sigma_f_vec"], data["sigma_c_vec"], data["transfer_vals"]])
+        return np.concatenate([data["sigma_f_vec"], data["transfer_vals"]])
 
     def _unflatten_total_data(self, x_block, block):
         G = block["G"]
@@ -367,13 +372,21 @@ class CrossSections:
 
         i0 = 0
         i1 = i0 + G
-        i2 = i1 + G
-        i3 = i2 + n_transfer
+        i2 = i1 + n_transfer
+
+        if len(x_block) != i2:
+            raise ValueError(
+                "Fission entrywise sample has length {}, expected {} "
+                "for [sigma_f_vec, transfer_vals].".format(len(x_block), i2)
+            )
 
         sigma_f_vec = np.array(x_block[i0:i1], dtype=float)
-        sigma_c_vec = np.array(x_block[i1:i2], dtype=float)
-        transfer_vals = np.array(x_block[i2:i3], dtype=float)
+        transfer_vals = np.array(x_block[i1:i2], dtype=float)
         S = self._entries_to_matrix(G, block["transfer_entries"], transfer_vals)
+
+        # Capture is fixed from the base XS file. Changing sigma_f or S changes
+        # sigma_t through the writer, not sigma_c.
+        sigma_c_vec = np.asarray(block["data"]["sigma_c_vec"], dtype=float).copy()
 
         return sigma_f_vec, sigma_c_vec, S
 
@@ -385,7 +398,7 @@ class CrossSections:
         return np.array([1.0, 1.0], dtype=float)
 
     def _flatten_fission_scales(self, data):
-        return np.array([1.0, 1.0, 1.0], dtype=float)
+        return np.array([1.0, 1.0], dtype=float)
 
     def _unflatten_total_scales(self, x_block, block):
         data = block["data"]
@@ -402,12 +415,17 @@ class CrossSections:
     def _unflatten_fission_scales(self, x_block, block):
         data = block["data"]
 
+        if len(x_block) != 2:
+            raise ValueError(
+                "Fission block-scale sample has length {}, expected 2 "
+                "for [sigma_f_scale, scatter_scale].".format(len(x_block))
+            )
+
         sigma_f_scale = float(x_block[0])
-        sigma_c_scale = float(x_block[1])
-        scatter_scale = float(x_block[2])
+        scatter_scale = float(x_block[1])
 
         sigma_f_vec = sigma_f_scale * np.asarray(data["sigma_f_vec"], dtype=float)
-        sigma_c_vec = sigma_c_scale * np.asarray(data["sigma_c_vec"], dtype=float)
+        sigma_c_vec = np.asarray(data["sigma_c_vec"], dtype=float).copy()
         transfer_vals = scatter_scale * np.asarray(data["transfer_vals"], dtype=float)
         S = self._entries_to_matrix(block["G"], block["transfer_entries"], transfer_vals)
 

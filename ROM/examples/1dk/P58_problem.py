@@ -23,30 +23,12 @@ class P58Problem:
                 },
             ],
             frac=0.2,
-            transfer_tol=1.0e-14,
-            param_mode="entrywise",
+            transfer_tol=1.0e-14
         )
 
-        # Preserve the original curated P58 parameter domain rather than
-        # adopting auto-generated relative bounds from xs.py.
-        self.bounds = [
-            [0.000836,0.001648],  # sigma_f[0]
-            [0.029564,0.057296],  # sigma_f[1]
-            [0.001104,0.001472],  # sigma_c[0]
-            [0.024069,0.029244],  # sigma_c[1]
-            [0.83807,0.83892],    # S[0,0]
-            [0.04536,0.04635],    # S[0,1]
-            [0.000767,0.00116],   # S[1,0]
-            [2.8751,2.9183],      # S[1,1]
-        ]
-        if len(self.bounds) != self.xs.n_params:
-            raise ValueError(
-                "P58 bounds define {} parameters, but xs.py expects {}."
-                .format(len(self.bounds), self.xs.n_params)
-            )
 
     def sample_training(self):
-        self.training_set = utils.sample_LHS(self.bounds, self.ntrain)
+        self.training_set = utils.sample_LHS(self.xs.bounds, self.ntrain)
 
         params_path = self.workdir / "data" / "params.txt"
         np.savetxt(str(params_path), self.training_set)
@@ -59,7 +41,7 @@ class P58Problem:
         self.training_set = np.loadtxt(str(params_path))
 
     def sample_testing(self):
-        self.testing_set = utils.sample_test(self.bounds, self.ntest)
+        self.testing_set = utils.sample_test(self.xs.bounds, self.ntest)
 
         params_path = self.workdir / "data" / "test_params.txt"
         np.savetxt(str(params_path), self.testing_set)
@@ -88,18 +70,18 @@ class P58Problem:
                 ranks=range(self.nprocs),
                 pid=i)
             k_error = np.abs(
-                np.loadtxt("output/fom_k_{}.txt".format(i))
+                np.loadtxt("output/test_fom_k_{}.txt".format(i))
                 - np.loadtxt("output/rom_k_{}.txt".format(i))
             )
 
             mi_error = plotting.plot_1d_eigenvector(
                 str(output_dir / ("fom_{}_".format(i) + "{}.h5")),
-                str(output_dir / ("rom_{}_".format(i) + "{}.h5")),
+                str(output_dir / ("mipod_{}_".format(i) + "{}.h5")),
                 ranks=range(self.nprocs),
                 pid=i)
             mi_k_error = np.abs(
-                np.loadtxt("output/fom_k_{}.txt".format(i))
-                - np.loadtxt("output/rom_k_{}.txt".format(i))
+                np.loadtxt("output/test_fom_k_{}.txt".format(i))
+                - np.loadtxt("output/mipod_k_{}.txt".format(i))
             )
 
             k_errors.append(k_error)

@@ -1,4 +1,3 @@
-# run_rom_P58.py
 from pathlib import Path
 import argparse
 import os, sys
@@ -9,41 +8,42 @@ if python_root:
 
 from job_manager import JobManager
 from P58_problem import P58Problem
-from rom_driver import run_pipeline
+from rom_driver import run_pipeline, run_active_subspace_pipeline
+
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument(
-        "--exe",
-        type=str,
-        default=None,
-        help="OpenSn application executable (e.g. opensn, ./opensn, path/to/app)",
-    )
-    ap.add_argument(
-        "--system",
-        type=str,
-        default="auto",
-        help="Execution system: auto, slurm, local, etc.",
-    )
-    ap.add_argument(
-        "--mi",
-        type=bool,
-        default=False,
-        help="Whether or not to run Minimally Invasive POD in addition to OMMI",
-    )
+
+    ap.add_argument("--exe", type=str, default=None)
+    ap.add_argument("--system", type=str, default="auto")
+
+    # Active subspace options
+    ap.add_argument("--active-subspace", action="store_true")
+    ap.add_argument("--active-num-gradients", type=int, default=20)
+    ap.add_argument("--active-rank", type=int, default=1)
+
     args = ap.parse_args()
 
     repo_root = Path.cwd()
 
-    # Pass executable into the JobManager
     jm = JobManager(
         system=args.system,
         opensn_exe=args.exe,
     )
 
-    problem = P58Problem(repo_root, ntrain=50)
+    problem = P58Problem(repo_root, ntrain=100)
 
-    run_pipeline(problem, repo_root, jm)
+    if args.active_subspace:
+        run_active_subspace_pipeline(
+            problem,
+            repo_root,
+            jm,
+            n_gradients=args.active_num_gradients,
+            active_rank=args.active_rank,
+        )
+    else:
+        run_pipeline(problem, repo_root, jm)
+
     problem.plot_results()
 
 

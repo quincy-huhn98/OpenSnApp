@@ -2,18 +2,44 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
+
+def _collect_new_point():
+    """Collect p0, p1, ... command-line parameters into a Python list.
+
+    The online ROM may be interpolated either in the original parameter space
+    or in a reduced active-coordinate space. Therefore the number of p-values
+    is intentionally not hard-coded.
+    """
+    values = []
+    i = 0
+    while True:
+        name = "p{}".format(i)
+        if name not in globals():
+            break
+        values.append(float(globals()[name]))
+        i += 1
+
+    if not values:
+        raise RuntimeError(
+            "phase='online' requires at least one active/interpolation coordinate "
+            "to be passed as p0, p1, ..."
+        )
+
+    return values
+
+
 if __name__ == "__main__":
 
     try:
         print("Parameter id = {}".format(pid))
     except:
-        p_id=0
+        pid = 0
         print("Parameter id = {}".format(pid))
 
     print("{} phase".format(phase))
 
     widths = [4.6, 1.126152]
-    nrefs = [50, 50]
+    nrefs = [500, 500]
     Nmat = len(widths)
     nodes = [0.]
     for imat in range(Nmat):
@@ -36,7 +62,7 @@ if __name__ == "__main__":
     fissile.LoadFromOpenSn("data/URRb.xs")
 
     # Angle information
-    n_angles = 32  # Number of discrete angles
+    n_angles = 128  # Number of discrete angles
     scat_order = 0  # Scattering order
 
     pquad = GLProductQuadrature1DSlab(n_polar=n_angles,
@@ -71,12 +97,12 @@ if __name__ == "__main__":
     )
 
     if phase == "online":
-        new_point = [p0, p1, p2, p3, p4, p5, p6, p7]
+        new_point = _collect_new_point()
         print(new_point)
         rom_options = {
                 "param_id": pid,
                 "phase": phase,
-                "param_file": "data/params.txt",
+                "param_file": "data/params_AS.txt",
                 "new_point": new_point
             }
     else:
@@ -101,7 +127,9 @@ if __name__ == "__main__":
             np.savetxt("output/mipod_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])
         if phase == "offline" and saveh5:
             phys.WriteFluxMoments("output/fom_{}_".format(pid))
-            np.savetxt("output/fom_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])
+            np.savetxt("output/test_fom_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])
+        elif phase == "offline":
+            np.savetxt("output/fom_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])            
     except:
         if phase == "online":
             phys.WriteFluxMoments("output/rom")
@@ -109,3 +137,4 @@ if __name__ == "__main__":
             phys.WriteFluxMoments("output/mipod")
         if phase == "offline":
             phys.WriteFluxMoments("output/fom")
+            np.savetxt("output/fom_k_{}.txt".format(pid), [k_solver.GetEigenvalue()])
