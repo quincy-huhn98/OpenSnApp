@@ -22,9 +22,6 @@ PowerIterationKEigenROMSolver::GetInputParameters()
   // Start from the base PI-k-eigen solver parameters
   InputParameters params = PowerIterationKEigenSolver::GetInputParameters();
 
-  params.SetGeneralDescription(
-    "Implementation of a k-eigenvalue ROM solver. Offline phase runs the "
-    "full-order power-iteration k-eigen solver and takes sample with libROM.");
   params.ChangeExistingParamToOptional("name", "PowerIterationKEigenROMSolver");
 
   params.AddRequiredParameter<std::shared_ptr<Problem>>(

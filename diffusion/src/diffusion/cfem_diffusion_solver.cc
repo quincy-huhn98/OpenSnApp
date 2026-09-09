@@ -3,17 +3,16 @@
 
 #include "cfem_diffusion_solver.h"
 #include "opensn/framework/runtime.h"
-#include "opensn/framework/object_factory.h"
+#include "opensn/framework/parameters/input_parameters.h"
 #include "opensn/framework/logging/log.h"
 #include "opensn/framework/utils/timer.h"
+#include "opensn/framework/utils/utils.h"
 #include "opensn/framework/math/functions/function.h"
 #include "opensn/framework/mesh/mesh_continuum/mesh_continuum.h"
 #include "opensn/framework/math/spatial_discretization/finite_element/piecewise_linear/piecewise_linear_continuous.h"
 
 namespace opensn
 {
-
-OpenSnRegisterObjectInNamespace(diffusion, CFEMDiffusionSolver);
 
 CFEMDiffusionSolver::CFEMDiffusionSolver(const std::string& name,
                                          std::shared_ptr<MeshContinuum> grid_ptr)
@@ -31,8 +30,7 @@ CFEMDiffusionSolver::GetInputParameters()
 std::shared_ptr<CFEMDiffusionSolver>
 CFEMDiffusionSolver::Create(const ParameterBlock& params)
 {
-  auto& factory = opensn::ObjectFactory::GetInstance();
-  return factory.Create<CFEMDiffusionSolver>("diffusion::CFEMDiffusionSolver", params);
+  return CreateObject<CFEMDiffusionSolver>("diffusion::CFEMDiffusionSolver", params);
 }
 
 CFEMDiffusionSolver::CFEMDiffusionSolver(const InputParameters& params)
