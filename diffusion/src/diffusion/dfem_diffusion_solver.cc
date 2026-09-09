@@ -3,9 +3,10 @@
 
 #include "dfem_diffusion_solver.h"
 #include "opensn/framework/runtime.h"
-#include "opensn/framework/object_factory.h"
+#include "opensn/framework/parameters/input_parameters.h"
 #include "opensn/framework/logging/log.h"
 #include "opensn/framework/utils/timer.h"
+#include "opensn/framework/utils/utils.h"
 #include "opensn/framework/mesh/mesh_continuum/mesh_continuum.h"
 #include "opensn/framework/field_functions/field_function_grid_based.h"
 #include "opensn/framework/math/spatial_discretization/finite_element/piecewise_linear/piecewise_linear_discontinuous.h"
@@ -14,13 +15,10 @@
 namespace opensn
 {
 
-OpenSnRegisterObjectAliasInNamespace(diffusion, DFEMSolver, DFEMDiffusionSolver);
-
 std::shared_ptr<DFEMDiffusionSolver>
 DFEMDiffusionSolver::Create(const ParameterBlock& params)
 {
-  auto& factory = opensn::ObjectFactory::GetInstance();
-  return factory.Create<DFEMDiffusionSolver>("diffusion::DFEMDiffusionSolver", params);
+  return CreateObject<DFEMDiffusionSolver>("diffusion::DFEMDiffusionSolver", params);
 }
 
 DFEMDiffusionSolver::DFEMDiffusionSolver(const std::string& name,

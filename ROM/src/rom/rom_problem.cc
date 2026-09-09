@@ -3,7 +3,7 @@
 
 #include "modules/linear_boltzmann_solvers/discrete_ordinates_problem/discrete_ordinates_problem.h"
 #include "modules/linear_boltzmann_solvers/discrete_ordinates_problem/iterative_methods/wgs_context.h"
-#include "framework/object_factory.h"
+#include "framework/parameters/input_parameters.h"
 #include "framework/logging/log.h"
 #include "framework/runtime.h"
 #include "rom_problem.h"
@@ -16,8 +16,6 @@
 namespace opensn
 {
 
-OpenSnRegisterObjectInNamespace(rom, ROMProblem);
-
 /** Returns the input-parameter schema for ROMProblem.
  *
  * Extends the base Problem schema with:
@@ -28,8 +26,6 @@ InputParameters
 ROMProblem::GetInputParameters()
 {
   InputParameters params = Problem::GetInputParameters();
-
-  params.SetClassName("ROMProblem");
 
   params.ChangeExistingParamToOptional("name", "ROMProblem");
 
@@ -51,8 +47,7 @@ ROMProblem::GetInputParameters()
 std::shared_ptr<ROMProblem>
 ROMProblem::Create(const ParameterBlock& params)
 {
-  auto& factory = opensn::ObjectFactory::GetInstance();
-  return factory.Create<ROMProblem>("rom::ROMProblem", params);
+  return CreateObject<ROMProblem>("rom::ROMProblem", params);
 }
 
 /** Constructs a ROMProblem and attaches it to an existing LBSProblem.
@@ -764,7 +759,6 @@ ROMProblem::GetOptionsBlock()
 {
   InputParameters params;
 
-  params.SetGeneralDescription("Set options from a list of parameters");
   params.AddOptionalParameter("param_id", 0, "A parameter id for parametric problems.");
   params.AddOptionalParameter("phase", "offline", "The phase (offline, online, systems, or merge) for ROM purposes.");
   params.AddOptionalParameter("param_file", "", "A file containing an array of parameters for ROM.");

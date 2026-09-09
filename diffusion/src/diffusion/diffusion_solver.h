@@ -4,7 +4,7 @@
 #pragma once
 
 #include "boundary.h"
-#include "opensn/framework/object_factory.h"
+#include "opensn/framework/parameters/input_parameters.h"
 #include "opensn/modules/solver.h"
 #include "opensn/framework/math/petsc_utils/petsc_utils.h"
 #include "opensn/framework/math/functions/function.h"

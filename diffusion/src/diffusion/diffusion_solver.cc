@@ -36,7 +36,6 @@ DiffusionSolverBase::GetOptionsBlock()
   InputParameters params;
   params.AddOptionalParameterArray(
     "boundary_conditions", {}, "An array contain tables for each boundary specification.");
-  params.LinkParameterToBlock("boundary_conditions", "DiffusionSolver::BoundaryOptionsBlock");
   return params;
 }
 
@@ -44,7 +43,6 @@ InputParameters
 DiffusionSolverBase::GetBoundaryOptionsBlock()
 {
   InputParameters params;
-  params.SetGeneralDescription("Set options for boundary conditions");
   params.AddRequiredParameter<std::string>("boundary",
                                            "Boundary to apply the boundary condition to.");
   params.AddRequiredParameter<std::string>("type", "Boundary type specification.");

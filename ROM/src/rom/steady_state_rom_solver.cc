@@ -24,8 +24,6 @@ SteadyStateROMSolver::GetInputParameters()
 {
   InputParameters params = SteadyStateSourceSolver::GetInputParameters();
 
-  params.SetGeneralDescription("Implementation of a steady state ROM solver. This solver calls the "
-                               "across-groupset (AGS) solver offline and interfaces with libROM.");
   params.ChangeExistingParamToOptional("name", "SteadyStateROMSolver");
   params.AddRequiredParameter<std::shared_ptr<Problem>>("rom_problem", "A ROM problem");
 
