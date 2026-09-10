@@ -19,10 +19,6 @@ NLKEigenROMSolver::GetInputParameters()
 {
   InputParameters params = NonLinearKEigenSolver::GetInputParameters();
 
-  params.SetGeneralDescription(
-    "Implementation of a non-linear k-eigenvalue ROM solver. Offline phase runs the "
-    "full-order non-linear k-eigen solver and takes samples with libROM; all reduced "
-    "ROM phases follow the power-iteration ROM workflow.");
   params.ChangeExistingParamToOptional("name", "NLKEigenROMSolver");
 
   params.AddRequiredParameter<std::shared_ptr<Problem>>("rom_problem", "A ROM problem");
